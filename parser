@@ -1,0 +1,132 @@
+// Function to decode HTML entities
+function decodeHtmlEntities(text) {
+  if (typeof text !== 'string') {
+    return text;
+  }
+  
+  var decoded = text;
+  
+  // Decode HTML entities in order
+  decoded = decoded.replace(/&quot;/g, '"');
+  decoded = decoded.replace(/&#x3D;/g, '=');
+  decoded = decoded.replace(/&#x2F;/g, '/');
+  decoded = decoded.replace(/&amp;/g, '&');
+  decoded = decoded.replace(/&lt;/g, '<');
+  decoded = decoded.replace(/&gt;/g, '>');
+  decoded = decoded.replace(/\\&quot;/g, '\\"');
+  
+  return decoded;
+}
+
+// Get the data from inputData.rawData
+var rawDataString = inputData.rawData;
+
+// Check if it's a string that needs decoding
+if (typeof rawDataString === 'string') {
+  // Decode HTML entities
+  rawDataString = decodeHtmlEntities(rawDataString);
+  
+  // Parse the JSON string
+  try {
+    var parsedData = JSON.parse(rawDataString);
+  } catch (e) {
+    return { error: 'Failed to parse JSON', message: e.toString(), rawData: rawDataString.substring(0, 200) };
+  }
+} else {
+  // It's already an object
+  var parsedData = rawDataString;
+}
+
+// Parse nested JSON strings
+if (parsedData.validatedNewRequiredFieldIDs && typeof parsedData.validatedNewRequiredFieldIDs === 'string') {
+  try {
+    parsedData.validatedNewRequiredFieldIDs = JSON.parse(parsedData.validatedNewRequiredFieldIDs);
+  } catch (e) {
+    return { error: 'Error parsing validatedNewRequiredFieldIDs', message: e.toString() };
+  }
+}
+
+// Parse the beneficiaries array if it exists
+if (parsedData.q43_beneficiaries && typeof parsedData.q43_beneficiaries === 'string') {
+  try {
+    parsedData.q43_beneficiaries = JSON.parse(parsedData.q43_beneficiaries);
+  } catch (e) {
+    return { error: 'Error parsing q43_beneficiaries', message: e.toString() };
+  }
+}
+
+// Parse the finances/bank accounts array if it exists
+if (parsedData.q33_finances && typeof parsedData.q33_finances === 'string') {
+  try {
+    parsedData.q33_finances = JSON.parse(parsedData.q33_finances);
+  } catch (e) {
+    return { error: 'Error parsing q33_finances', message: e.toString() };
+  }
+}
+
+// Format date helper function
+function formatDate(dateObj) {
+  if (dateObj && dateObj.month && dateObj.day && dateObj.year) {
+    return dateObj.month + '/' + dateObj.day + '/' + dateObj.year;
+  }
+  return '';
+}
+
+// Extract ALL fields
+var dateToday = formatDate(parsedData['q6_date-today']);
+var yourFirstName = (parsedData['q3_your-name'] && parsedData['q3_your-name'].first) || '';
+var yourLastName = (parsedData['q3_your-name'] && parsedData['q3_your-name'].last) || '';
+var yourVeteran = parsedData['q51_you-veteran'] || '';
+var spouseFirstName = (parsedData['q7_spouse-name'] && parsedData['q7_spouse-name'].first) || '';
+var spouseLastName = (parsedData['q7_spouse-name'] && parsedData['q7_spouse-name'].last) || '';
+var spouseVeteran = parsedData['q52_spouse-veteran'] || '';
+var advisorFirstName = (parsedData['q12_financialAdvisor-name'] && parsedData['q12_financialAdvisor-name'].first) || '';
+var advisorLastName = (parsedData['q12_financialAdvisor-name'] && parsedData['q12_financialAdvisor-name'].last) || '';
+var advisorName = advisorFirstName && advisorLastName ? advisorFirstName + ' ' + advisorLastName : '';
+var advisorFirm = parsedData['q44_financialAdvisor-firm'] || '';
+var advisorPhone = (parsedData['q14_financialAdvisor-phone'] && parsedData['q14_financialAdvisor-phone'].full) || '';
+var accountantFirstName = (parsedData['q13_accountant-name'] && parsedData['q13_accountant-name'].first) || '';
+var accountantLastName = (parsedData['q13_accountant-name'] && parsedData['q13_accountant-name'].last) || '';
+var accountantName = accountantFirstName && accountantLastName ? accountantFirstName + ' ' + accountantLastName : '';
+var accountantFirm = parsedData['q46_accountant-firm'] || '';
+var accountantPhone = (parsedData['q15_accountant-phone'] && parsedData['q15_accountant-phone'].full) || '';
+var beneficiaries = parsedData.q43_beneficiaries || [];
+var bankAccounts = parsedData.q33_finances || [];
+var savePdf = parsedData.q38_savePdf || '';
+var slug = parsedData.slug || '';
+var submitDate = parsedData.submitDate || '';
+var submitSource = parsedData.submitSource || '';
+var eventId = parsedData.event_id || '';
+var timeToSubmit = parsedData.timeToSubmit || '';
+var buildDate = parsedData.buildDate || '';
+
+return {
+  slug: slug,
+  submitDate: submitDate,
+  submitSource: submitSource,
+  eventId: eventId,
+  timeToSubmit: timeToSubmit,
+  buildDate: buildDate,
+  dateToday: dateToday,
+  yourFirstName: yourFirstName,
+  yourLastName: yourLastName,
+  yourVeteran: yourVeteran,
+  spouseFirstName: spouseFirstName,
+  spouseLastName: spouseLastName,
+  spouseVeteran: spouseVeteran,
+  advisorName: advisorName,
+  advisorFirstName: advisorFirstName,
+  advisorLastName: advisorLastName,
+  advisorFirm: advisorFirm,
+  advisorPhone: advisorPhone,
+  accountantName: accountantName,
+  accountantFirstName: accountantFirstName,
+  accountantLastName: accountantLastName,
+  accountantFirm: accountantFirm,
+  accountantPhone: accountantPhone,
+  beneficiaries: beneficiaries,
+  bankAccounts: bankAccounts,
+  savePdf: savePdf,
+  fullData: parsedData
+};
+

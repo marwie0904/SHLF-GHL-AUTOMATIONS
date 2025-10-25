@@ -1,0 +1,721 @@
+{
+  "mapping": {
+    "basicContactInfo": [
+      {
+        "jotformField": "First Name",
+        "ghlFieldName": "firstName",
+        "ghlFieldId": "standard",
+        "fieldType": "TEXT",
+        "isStandard": true
+      },
+      {
+        "jotformField": "Last Name",
+        "ghlFieldName": "lastName",
+        "ghlFieldId": "standard",
+        "fieldType": "TEXT",
+        "isStandard": true
+      },
+      {
+        "jotformField": "Phone Number",
+        "ghlFieldName": "phone",
+        "ghlFieldId": "standard",
+        "fieldType": "TEXT",
+        "isStandard": true
+      }
+    ],
+    "currentSpouse": {
+      "ghlFieldId": "PaWSsRF646ra92Wl28BO",
+      "ghlFieldName": "Current Spouse",
+      "ghlFieldKey": "contact.current_spouse",
+      "fieldType": "TEXTBOX_LIST",
+      "subFields": [
+        {
+          "jotformField": "Current Spouse: Name",
+          "ghlSubField": "Name",
+          "subFieldId": "7fc16f8e-45e4-499d-988b-594b381a3756"
+        },
+        {
+          "jotformField": "Current Spouse: Veteran",
+          "ghlSubField": "Veteran",
+          "subFieldId": "b055adea-2319-44ad-aeba-cdc17b5ba14f"
+        }
+      ]
+    },
+    "financialAdvisor": {
+      "ghlFieldId": "UOzd4H579qhrQuzUn7pB",
+      "ghlFieldName": "Financial Advisor",
+      "ghlFieldKey": "contact.financial_advisor_full",
+      "fieldType": "TEXTBOX_LIST",
+      "subFields": [
+        {
+          "jotformField": "Financial Advisor: Name",
+          "ghlSubField": "Name",
+          "subFieldId": "51d76135-bc4d-47b0-81ed-f4f4131d29d5"
+        },
+        {
+          "jotformField": "Financial Advisor: Firm",
+          "ghlSubField": "Firm",
+          "subFieldId": "6bf689bd-dc11-4788-adef-416428e45e5e"
+        },
+        {
+          "jotformField": "Financial Advisor: Phone",
+          "ghlSubField": "Phone Number",
+          "subFieldId": "d2cb15ce-2f0d-4363-aa45-051db7c58228"
+        }
+      ]
+    },
+    "accountant": {
+      "ghlFieldId": "Se5ViPscA5WJjkq4w6gA",
+      "ghlFieldName": "Accountant",
+      "ghlFieldKey": "contact.accountant",
+      "fieldType": "TEXTBOX_LIST",
+      "subFields": [
+        {
+          "jotformField": "Accountant: Name",
+          "ghlSubField": "Full Name",
+          "subFieldId": "71b8c792-3b28-4fe0-bdbf-504423f49f84"
+        },
+        {
+          "jotformField": "Accountant: Firm",
+          "ghlSubField": "Firm",
+          "subFieldId": "36abe196-246a-4a51-b8a0-c54ed6cc1f17"
+        },
+        {
+          "jotformField": "Accountant: Phone",
+          "ghlSubField": "Phone Number",
+          "subFieldId": "fe40bee6-676f-4519-9b39-2d1d8669e69d"
+        }
+      ]
+    },
+    "beneficiaries": [
+      {
+        "beneficiaryNumber": 1,
+        "ghlFieldId": "vVqUMm8oLkbyyhSoI89C",
+        "ghlFieldName": "Beneficiary 1",
+        "ghlFieldKey": "contact.beneficiary",
+        "fieldType": "TEXTBOX_LIST",
+        "subFields": [
+          {
+            "jotformField": "Beneficiaries: Name",
+            "ghlSubField": "Beneficiary Name",
+            "subFieldId": "7cc5c0aa-8d1f-42fb-a4be-3043f69f4e09"
+          },
+          {
+            "jotformField": "Beneficiaries: Date of Birth",
+            "ghlSubField": "Date of Birth",
+            "subFieldId": "db344543-bea8-4d05-a733-9af7e063270d"
+          },
+          {
+            "jotformField": "Beneficiaries: Occupation",
+            "ghlSubField": "Occupation",
+            "subFieldId": "f21b789a-b44c-40b6-b629-a21b2d4f1a56"
+          },
+          {
+            "jotformField": "Beneficiaries: Phone Number",
+            "ghlSubField": "Phone Number",
+            "subFieldId": "ad8d44c7-c3ad-42cf-b4d2-e7d3a98a772b"
+          },
+          {
+            "jotformField": "Beneficiaries: Sex",
+            "ghlSubField": "Sex",
+            "subFieldId": "d50a48bb-aa4c-4144-a68a-cb57a0a53004"
+          },
+          {
+            "jotformField": "Beneficiaries: Relationship",
+            "ghlSubField": "Relationship",
+            "subFieldId": "b6e81c42-3246-432d-b030-880b0575c36b"
+          },
+          {
+            "jotformField": "Beneficiaries: Special Needs/Considerations",
+            "ghlSubField": "Special Needs / Considerations",
+            "subFieldId": "5f843a49-3626-4d25-9edc-84239fc3c2c5"
+          },
+          {
+            "jotformField": "Beneficiaries: Potential Problems/Hardships",
+            "ghlSubField": "Potential Problems / Hardships",
+            "subFieldId": "bfcbcd54-81c5-4a2c-ab0b-bfd806f9575c"
+          },
+          {
+            "jotformField": "Beneficiaries: Address",
+            "ghlSubField": "Address",
+            "subFieldId": "4e9317a1-f218-4435-bb5f-9b36e1c259a2"
+          },
+          {
+            "jotformField": "Beneficiaries: City",
+            "ghlSubField": "City",
+            "subFieldId": "a6ce091a-e85b-4708-a2f9-cb6cdd06a68e"
+          },
+          {
+            "jotformField": "Beneficiaries: State/Province",
+            "ghlSubField": "State/Province",
+            "subFieldId": "23196ee2-a914-40c9-87dc-e495a1a09951"
+          },
+          {
+            "jotformField": "Beneficiaries: Zip Code",
+            "ghlSubField": "Zip Code",
+            "subFieldId": "0e9ceb08-6574-425a-b5c8-b10afd013394"
+          },
+          {
+            "jotformField": "Beneficiaries: Spouse Name",
+            "ghlSubField": "Spouse Name",
+            "subFieldId": "b9226494-b5dd-4c54-895c-526c8d2da201"
+          },
+          {
+            "jotformField": "Beneficiaries: Relationship Status",
+            "ghlSubField": "Relationship Status",
+            "subFieldId": "46c330db-68b9-47e4-9992-d3feda8289bd"
+          },
+          {
+            "jotformField": "Beneficiaries: How Many Children",
+            "ghlSubField": "How Many Children",
+            "subFieldId": "0e1a6581-8ac2-4b9e-ba62-1fefc74b9f23"
+          },
+          {
+            "jotformField": "Beneficiaries: Ages of Children",
+            "ghlSubField": "Ages of Children",
+            "subFieldId": "30c054fd-8ac0-4835-9234-6c9f34074a4f"
+          }
+        ]
+      },
+      {
+        "beneficiaryNumber": 2,
+        "ghlFieldId": "SwYRpin4URTMWXcBGVfA",
+        "ghlFieldName": "Beneficiary 2",
+        "ghlFieldKey": "contact.beneficiary_2",
+        "fieldType": "TEXTBOX_LIST",
+        "subFields": [
+          {
+            "jotformField": "Beneficiaries: Name",
+            "ghlSubField": "Name",
+            "subFieldId": "bf1caabc-e5bc-46ac-817d-c5aba0b68b5f"
+          },
+          {
+            "jotformField": "Beneficiaries: Date of Birth",
+            "ghlSubField": "Date of Birth",
+            "subFieldId": "bf9a48b7-6bec-4eb8-8320-408aab7bb65a"
+          },
+          {
+            "jotformField": "Beneficiaries: Occupation",
+            "ghlSubField": "Occupation",
+            "subFieldId": "928972dc-07f0-428a-a97c-c7ed56ad25ca"
+          },
+          {
+            "jotformField": "Beneficiaries: Phone Number",
+            "ghlSubField": "Phone Number",
+            "subFieldId": "8c269892-6ed0-49d5-bec3-f6d20e2f809a"
+          },
+          {
+            "jotformField": "Beneficiaries: Sex",
+            "ghlSubField": "Sex",
+            "subFieldId": "de416af0-0612-4148-8518-3f849bd9a203"
+          },
+          {
+            "jotformField": "Beneficiaries: Relationship",
+            "ghlSubField": "Relationship",
+            "subFieldId": "68e031b1-a16d-461d-b0a4-cd81a890825f"
+          },
+          {
+            "jotformField": "Beneficiaries: Special Needs/Considerations",
+            "ghlSubField": "Special Needs/Considerations",
+            "subFieldId": "db20f7a8-0563-4e15-ab1b-b30a81e6143e"
+          },
+          {
+            "jotformField": "Beneficiaries: Potential Problems/Hardships",
+            "ghlSubField": "Potential Problems/Hardships",
+            "subFieldId": "06ab7e2b-4dbb-4f8f-ae2a-e59147785ae7"
+          },
+          {
+            "jotformField": "Beneficiaries: Address",
+            "ghlSubField": "Address",
+            "subFieldId": "41b1967d-b654-4944-b010-7e77f3836776"
+          },
+          {
+            "jotformField": "Beneficiaries: City",
+            "ghlSubField": "City",
+            "subFieldId": "637407ff-6d06-47e4-aa26-0c7abc8de57b"
+          },
+          {
+            "jotformField": "Beneficiaries: State/Province",
+            "ghlSubField": "State/Province",
+            "subFieldId": "17bcd1cb-f181-4162-8afe-bfa1125b947a"
+          },
+          {
+            "jotformField": "Beneficiaries: Zip Code",
+            "ghlSubField": "Zip Code",
+            "subFieldId": "81d3ac53-78e6-4827-a3c6-6f9e69ce2b5e"
+          },
+          {
+            "jotformField": "Beneficiaries: Spouse Name",
+            "ghlSubField": "Spouse Name",
+            "subFieldId": "68f4db67-7920-4a6a-9b1b-2e0b6b1f876c"
+          },
+          {
+            "jotformField": "Beneficiaries: Relationship Status",
+            "ghlSubField": "Relationship Status",
+            "subFieldId": "0a825009-ee0d-4f22-9050-706450078763"
+          },
+          {
+            "jotformField": "Beneficiaries: How Many Children",
+            "ghlSubField": "How Many Children",
+            "subFieldId": "40585775-7cef-4892-b9bb-680b5fcd816d"
+          },
+          {
+            "jotformField": "Beneficiaries: Ages of Children",
+            "ghlSubField": "Ages of Children",
+            "subFieldId": "d942345a-b2ce-41e6-8ac4-1c749cc36790"
+          }
+        ]
+      },
+      {
+        "beneficiaryNumber": 3,
+        "ghlFieldId": "xJbZUQvcCUPQ8vnmSVjZ",
+        "ghlFieldName": "Beneficiary 3",
+        "ghlFieldKey": "contact.beneficiary_3",
+        "fieldType": "TEXTBOX_LIST",
+        "subFields": [
+          {
+            "jotformField": "Beneficiaries: Name",
+            "ghlSubField": "Name",
+            "subFieldId": "d1245c51-a455-4c8f-9e47-9b3f04a8b395"
+          },
+          {
+            "jotformField": "Beneficiaries: Date of Birth",
+            "ghlSubField": "Date of Birth",
+            "subFieldId": "8e9a0493-bc69-4ed2-aaee-c9016c8b6127"
+          },
+          {
+            "jotformField": "Beneficiaries: Occupation",
+            "ghlSubField": "Occupation",
+            "subFieldId": "f2e99c9e-bb04-4eed-94a7-23db4e773936"
+          },
+          {
+            "jotformField": "Beneficiaries: Phone Number",
+            "ghlSubField": "Phone Number",
+            "subFieldId": "731d7e7f-8570-48d0-b76d-1ed43ef5f98f"
+          },
+          {
+            "jotformField": "Beneficiaries: Sex",
+            "ghlSubField": "Sex",
+            "subFieldId": "ec449994-bc1c-4bc2-b350-66d5f97bda25"
+          },
+          {
+            "jotformField": "Beneficiaries: Relationship",
+            "ghlSubField": "Relationship",
+            "subFieldId": "e3164299-1fb5-40a3-aab7-7e70b1f881b7"
+          },
+          {
+            "jotformField": "Beneficiaries: Special Needs/Considerations",
+            "ghlSubField": "Special Needs / Considerations",
+            "subFieldId": "295451f9-b86a-45eb-97f9-4a7dfb0cb8f2"
+          },
+          {
+            "jotformField": "Beneficiaries: Potential Problems/Hardships",
+            "ghlSubField": "Potential Problems / Hardships",
+            "subFieldId": "7b580a19-f32f-458d-969b-bce2ded4a099"
+          },
+          {
+            "jotformField": "Beneficiaries: Address",
+            "ghlSubField": "Address",
+            "subFieldId": "af79f896-8293-4bcf-99fd-ad1e3ff16eba"
+          },
+          {
+            "jotformField": "Beneficiaries: City",
+            "ghlSubField": "City",
+            "subFieldId": "c1418a2f-cc0e-46a6-83b0-8e49f6c5cd1b"
+          },
+          {
+            "jotformField": "Beneficiaries: State/Province",
+            "ghlSubField": "State/Province",
+            "subFieldId": "1f76fa29-0659-4627-bd7b-9945f1902c59"
+          },
+          {
+            "jotformField": "Beneficiaries: Zip Code",
+            "ghlSubField": "Zip Code",
+            "subFieldId": "ac6a5b1a-af87-4482-97e1-b2b4244d6b55"
+          },
+          {
+            "jotformField": "Beneficiaries: Spouse Name",
+            "ghlSubField": "Spouse Name",
+            "subFieldId": "1c6cc51e-e9b5-4055-a7c1-15d744bee405"
+          },
+          {
+            "jotformField": "Beneficiaries: Relationship Status",
+            "ghlSubField": "Relationship Status",
+            "subFieldId": "ea440f3d-7116-4402-a16f-3a0eeaccd38c"
+          },
+          {
+            "jotformField": "Beneficiaries: How Many Children",
+            "ghlSubField": "How Many Children",
+            "subFieldId": "2d7af752-90c5-49a5-a14a-28f11ad717fd"
+          },
+          {
+            "jotformField": "Beneficiaries: Ages of Children",
+            "ghlSubField": "Ages of Children",
+            "subFieldId": "c58d70df-6341-4cfb-b625-fe1619b82fd6"
+          }
+        ]
+      },
+      {
+        "beneficiaryNumber": 4,
+        "ghlFieldId": "Kipc4X0YOxdHC3elSUwJ",
+        "ghlFieldName": "Beneficiary 4",
+        "ghlFieldKey": "contact.beneficiary_4",
+        "fieldType": "TEXTBOX_LIST",
+        "subFields": [
+          {
+            "jotformField": "Beneficiaries: Name",
+            "ghlSubField": "Name",
+            "subFieldId": "ab012845-d378-4cdd-ad56-4048f38e5216"
+          },
+          {
+            "jotformField": "Beneficiaries: Date of Birth",
+            "ghlSubField": "Date of Birth",
+            "subFieldId": "4a424160-d16a-455d-820b-3f42e3c6fb37"
+          },
+          {
+            "jotformField": "Beneficiaries: Occupation",
+            "ghlSubField": "Occupation",
+            "subFieldId": "12f212b9-1253-43c8-aa22-7ab564d55018"
+          },
+          {
+            "jotformField": "Beneficiaries: Phone Number",
+            "ghlSubField": "Phone Number",
+            "subFieldId": "c80fc766-2f5f-4230-90e0-d03bb89f26af"
+          },
+          {
+            "jotformField": "Beneficiaries: Sex",
+            "ghlSubField": "Sex",
+            "subFieldId": "8cfe3279-5892-454b-93e6-ef4ddf371646"
+          },
+          {
+            "jotformField": "Beneficiaries: Relationship",
+            "ghlSubField": "Relationship",
+            "subFieldId": "3f17ad37-f61b-44b7-b3cc-6b4a140adcbc"
+          },
+          {
+            "jotformField": "Beneficiaries: Special Needs/Considerations",
+            "ghlSubField": "Special Needs / Considerations",
+            "subFieldId": "73b0e12c-53d8-47d8-91c6-736318681190"
+          },
+          {
+            "jotformField": "Beneficiaries: Potential Problems/Hardships",
+            "ghlSubField": "Potential Problems / Hardships",
+            "subFieldId": "aa550563-2f1b-48ae-8578-f0425a116661"
+          },
+          {
+            "jotformField": "Beneficiaries: Address",
+            "ghlSubField": "Address",
+            "subFieldId": "f7f63b73-de4e-4fa8-8a65-8cd38877081f"
+          },
+          {
+            "jotformField": "Beneficiaries: City",
+            "ghlSubField": "City",
+            "subFieldId": "314c3e92-5c7c-4b80-a7a5-0769226d56c0"
+          },
+          {
+            "jotformField": "Beneficiaries: State/Province",
+            "ghlSubField": "State/Province",
+            "subFieldId": "c16079d0-83dd-41ab-a0ea-cafd4c232b1b"
+          },
+          {
+            "jotformField": "Beneficiaries: Zip Code",
+            "ghlSubField": "Zip Code",
+            "subFieldId": "a68e28e1-4775-4570-8b8c-fcb86d496c3b"
+          },
+          {
+            "jotformField": "Beneficiaries: Spouse Name",
+            "ghlSubField": "Spouse Name",
+            "subFieldId": "c91b0572-7f0a-4ae6-9a48-0becdc0065ca"
+          },
+          {
+            "jotformField": "Beneficiaries: Relationship Status",
+            "ghlSubField": "Relationship Status",
+            "subFieldId": "e0930969-1d0c-45f8-a8f9-84aa889c7460"
+          },
+          {
+            "jotformField": "Beneficiaries: How Many Children",
+            "ghlSubField": "How Many Children",
+            "subFieldId": "0f274b5c-b0d3-45da-aaaa-5dc8dbde96d4"
+          },
+          {
+            "jotformField": "Beneficiaries: Ages of Children",
+            "ghlSubField": "Ages of Children",
+            "subFieldId": "488f64bc-b1f5-4285-8786-24c71503e753"
+          }
+        ]
+      },
+      {
+        "beneficiaryNumber": 5,
+        "ghlFieldId": "MEUgfqArJpyJUjaNsOiD",
+        "ghlFieldName": "Beneficiary 5",
+        "ghlFieldKey": "contact.beneficiary_5",
+        "fieldType": "TEXTBOX_LIST",
+        "subFields": [
+          {
+            "jotformField": "Beneficiaries: Name",
+            "ghlSubField": "Name",
+            "subFieldId": "399d50cd-d4c2-4304-a3af-df8ab8620685"
+          },
+          {
+            "jotformField": "Beneficiaries: Date of Birth",
+            "ghlSubField": "Date of Birth",
+            "subFieldId": "0bc06b52-8c1d-445b-9312-ea4a9f3f4bec"
+          },
+          {
+            "jotformField": "Beneficiaries: Occupation",
+            "ghlSubField": "Occupation",
+            "subFieldId": "5167fd2a-7955-45d7-bb2a-8397ec713998"
+          },
+          {
+            "jotformField": "Beneficiaries: Phone Number",
+            "ghlSubField": "Phone Number",
+            "subFieldId": "5e785a5f-eb4e-4271-a9c4-61ab88e1a49f"
+          },
+          {
+            "jotformField": "Beneficiaries: Sex",
+            "ghlSubField": "Sex",
+            "subFieldId": "5cb72876-82c5-494d-9947-7105d442bb59"
+          },
+          {
+            "jotformField": "Beneficiaries: Relationship",
+            "ghlSubField": "Relationship",
+            "subFieldId": "a70ffee4-dcda-47b7-ae88-eb97b44ec168"
+          },
+          {
+            "jotformField": "Beneficiaries: Special Needs/Considerations",
+            "ghlSubField": "Special Needs / Consideration",
+            "subFieldId": "5e19c7c9-eef7-42a9-b8d3-0d84ee59b36e"
+          },
+          {
+            "jotformField": "Beneficiaries: Potential Problems/Hardships",
+            "ghlSubField": "Potential Problems / Hardships",
+            "subFieldId": "02b8551a-26a6-4b55-8d4a-d8e6cb3e2d3e"
+          },
+          {
+            "jotformField": "Beneficiaries: Address",
+            "ghlSubField": "Address",
+            "subFieldId": "f700284b-92a2-4aa8-bd03-3d48a57030de"
+          },
+          {
+            "jotformField": "Beneficiaries: City",
+            "ghlSubField": "City",
+            "subFieldId": "8354fe0b-2a36-4c5c-9b0a-c16bf12e94c5"
+          },
+          {
+            "jotformField": "Beneficiaries: State/Province",
+            "ghlSubField": "State / Province",
+            "subFieldId": "8e89ec77-8395-4ef9-a5c4-d35436ba28a0"
+          },
+          {
+            "jotformField": "Beneficiaries: Zip Code",
+            "ghlSubField": "Zip Code",
+            "subFieldId": "bc673d1d-1904-4dbd-a201-39acee500a05"
+          },
+          {
+            "jotformField": "Beneficiaries: Spouse Name",
+            "ghlSubField": "Spouse Name",
+            "subFieldId": "dbda5839-2567-4947-b35c-0ef21125a0d3"
+          },
+          {
+            "jotformField": "Beneficiaries: Relationship Status",
+            "ghlSubField": "Relationship Status",
+            "subFieldId": "2c70695b-0077-46c5-98f5-570743dd973e"
+          },
+          {
+            "jotformField": "Beneficiaries: How Many Children",
+            "ghlSubField": "How Many Children",
+            "subFieldId": "8e9152a8-c534-47b4-a5ce-f7e84f0143ec"
+          },
+          {
+            "jotformField": "Beneficiaries: Ages of Children",
+            "ghlSubField": "Ages of Children",
+            "subFieldId": "918f0616-757a-4c74-875d-719fa7ac9fa1"
+          }
+        ]
+      }
+    ],
+    "finances": [
+      {
+        "bankNumber": 1,
+        "ghlFieldId": "r08JDyJjW7UyKp1B3DLH",
+        "ghlFieldName": "Bank 1",
+        "ghlFieldKey": "contact.bank_1",
+        "fieldType": "TEXTBOX_LIST",
+        "subFields": [
+          {
+            "jotformField": "Finances: Bank Name",
+            "ghlSubField": "Name",
+            "subFieldId": "75e19ff1-3bd0-4047-bcaa-88560223422e"
+          },
+          {
+            "jotformField": "Finances: Representative",
+            "ghlSubField": "Representative",
+            "subFieldId": "bbf6a9d7-6ccd-4314-9153-8f4f43a8c587"
+          },
+          {
+            "jotformField": "Finances: Account Type",
+            "ghlSubField": "Account Type",
+            "subFieldId": "399add72-6da2-4734-931a-918c32969d88"
+          },
+          {
+            "jotformField": "Finances: Current Owner(s)",
+            "ghlSubField": "Current Owner(s)",
+            "subFieldId": "8ea7da0e-5a62-4ad9-858d-cb7cff8217f7"
+          },
+          {
+            "jotformField": "Finances: Approx. Value",
+            "ghlSubField": "Approx. Value",
+            "subFieldId": "083c8d98-8d05-478c-a4f5-840deb31546d"
+          }
+        ]
+      },
+      {
+        "bankNumber": 2,
+        "ghlFieldId": "DZia9UXbSX0y1bkfSsJy",
+        "ghlFieldName": "Bank 2",
+        "ghlFieldKey": "contact.bank_2",
+        "fieldType": "TEXTBOX_LIST",
+        "subFields": [
+          {
+            "jotformField": "Finances: Bank Name",
+            "ghlSubField": "Name",
+            "subFieldId": "08234682-4ef5-411e-b622-890015b23cb6"
+          },
+          {
+            "jotformField": "Finances: Representative",
+            "ghlSubField": "Representative",
+            "subFieldId": "a4945866-81f8-47ed-b955-71eecddfa861"
+          },
+          {
+            "jotformField": "Finances: Account Type",
+            "ghlSubField": "Account Type",
+            "subFieldId": "e80fcaac-febf-48c3-8929-e9ca92c1a37c"
+          },
+          {
+            "jotformField": "Finances: Current Owner(s)",
+            "ghlSubField": "Current Owner",
+            "subFieldId": "9d51d732-a12f-424f-b2ac-4cc43d267898"
+          },
+          {
+            "jotformField": "Finances: Approx. Value",
+            "ghlSubField": "Approx. Value",
+            "subFieldId": "94868daa-bf06-4039-9af8-2c4f154119d3"
+          }
+        ]
+      },
+      {
+        "bankNumber": 3,
+        "ghlFieldId": "RALYIVbww7hDG7GdEhcW",
+        "ghlFieldName": "Bank 3",
+        "ghlFieldKey": "contact.bank_3",
+        "fieldType": "TEXTBOX_LIST",
+        "subFields": [
+          {
+            "jotformField": "Finances: Bank Name",
+            "ghlSubField": "Name",
+            "subFieldId": "5925da76-234b-41f3-97c1-47233164cea5"
+          },
+          {
+            "jotformField": "Finances: Representative",
+            "ghlSubField": "Representative",
+            "subFieldId": "60b339e4-f2ad-4561-8f20-32d4a7a1360b"
+          },
+          {
+            "jotformField": "Finances: Account Type",
+            "ghlSubField": "Account Type",
+            "subFieldId": "bd718eec-c4af-4356-9a5e-8a4de6d3100d"
+          },
+          {
+            "jotformField": "Finances: Current Owner(s)",
+            "ghlSubField": "Current Owner(s)",
+            "subFieldId": "cd3763c0-3e33-4876-8a6a-fdd2febffc68"
+          },
+          {
+            "jotformField": "Finances: Approx. Value",
+            "ghlSubField": "Approx. Value",
+            "subFieldId": "f2c9dd56-ff9f-4edd-b4db-d7dd367304e6"
+          }
+        ]
+      },
+      {
+        "bankNumber": 4,
+        "ghlFieldId": "64yDUYZF0WSgdDP2chRk",
+        "ghlFieldName": "Bank 4",
+        "ghlFieldKey": "contact.bank_4",
+        "fieldType": "TEXTBOX_LIST",
+        "subFields": [
+          {
+            "jotformField": "Finances: Bank Name",
+            "ghlSubField": "Name",
+            "subFieldId": "09cb6896-b588-4530-a68b-4f4cddf6b5c7"
+          },
+          {
+            "jotformField": "Finances: Representative",
+            "ghlSubField": "Representative",
+            "subFieldId": "d3b89d7b-5d88-4124-8777-34db2b3d0e20"
+          },
+          {
+            "jotformField": "Finances: Account Type",
+            "ghlSubField": "Account Type",
+            "subFieldId": "4c5260a5-4c34-4c68-99de-f521ad5c1e09"
+          },
+          {
+            "jotformField": "Finances: Current Owner(s)",
+            "ghlSubField": "Current Owner(s)",
+            "subFieldId": "5aa588d7-c01b-4b76-ac7f-d25dde84036f"
+          },
+          {
+            "jotformField": "Finances: Approx. Value",
+            "ghlSubField": "Approx. Value",
+            "subFieldId": "9b5568a0-e8f0-431b-8d5c-20394e0385f6"
+          }
+        ]
+      },
+      {
+        "bankNumber": 5,
+        "ghlFieldId": "Ex7UR3hl0ZWqNIXUHhPY",
+        "ghlFieldName": "Bank 5",
+        "ghlFieldKey": "contact.bank_5",
+        "fieldType": "TEXTBOX_LIST",
+        "subFields": [
+          {
+            "jotformField": "Finances: Bank Name",
+            "ghlSubField": "Name",
+            "subFieldId": "f12890b2-74cc-4d08-bed2-c098de2bc05a"
+          },
+          {
+            "jotformField": "Finances: Representative",
+            "ghlSubField": "Representative",
+            "subFieldId": "3819695a-4618-42ed-ace0-bec75d975520"
+          },
+          {
+            "jotformField": "Finances: Account Type",
+            "ghlSubField": "Account Type",
+            "subFieldId": "4553e3d2-accb-40d6-8cd2-582a07d640fb"
+          },
+          {
+            "jotformField": "Finances: Current Owner(s)",
+            "ghlSubField": "Current Owner(s)",
+            "subFieldId": "3a183df7-27b5-423e-9b33-6485236036f0"
+          },
+          {
+            "jotformField": "Finances: Approx. Value",
+            "ghlSubField": "Approx. Value",
+            "subFieldId": "7ac9a58a-8705-4dd2-a20a-c8bc57009a99"
+          }
+        ]
+      }
+    ]
+  },
+  "metadata": {
+    "description": "Mapping between JotForm fields and GHL (GoHighLevel) custom fields",
+    "lastUpdated": "2025-10-26",
+    "notes": [
+      "Standard fields (firstName, lastName, phone) are built into GHL and don't require custom field IDs",
+      "TEXTBOX_LIST fields contain multiple sub-fields grouped together",
+      "GHL supports up to 5 beneficiaries and 5 banks with this configuration",
+      "Each beneficiary has 16 sub-fields available",
+      "Each bank/finance entry has 5 sub-fields available"
+    ]
+  }
+}
