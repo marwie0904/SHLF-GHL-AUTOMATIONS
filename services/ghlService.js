@@ -140,4 +140,54 @@ async function createGHLContact(contactData) {
   }
 }
 
-module.exports = { createGHLContact };
+/**
+ * Creates an opportunity for a contact in GoHighLevel
+ * @param {string} contactId - GHL contact ID
+ * @param {string} pipelineId - GHL pipeline ID
+ * @param {string} stageId - GHL stage ID (default: Pending Contact)
+ * @param {string} name - Opportunity name
+ * @returns {Promise<Object>} API response
+ */
+async function createGHLOpportunity(contactId, pipelineId, stageId, name) {
+  const apiKey = process.env.GHL_API_KEY;
+  const locationId = process.env.GHL_LOCATION_ID;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  if (!locationId) {
+    throw new Error('GHL_LOCATION_ID not configured in environment variables');
+  }
+
+  try {
+    const payload = {
+      pipelineId: pipelineId,
+      locationId: locationId,
+      name: name,
+      stageId: stageId,
+      status: 'open',
+      contactId: contactId
+    };
+
+    const response = await axios.post(
+      'https://services.leadconnectorhq.com/opportunities/',
+      payload,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    console.log('GHL Opportunity created successfully:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating GHL opportunity:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+module.exports = { createGHLContact, createGHLOpportunity };

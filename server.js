@@ -3,7 +3,7 @@ const express = require('express');
 const multer = require('multer');
 const { parseJotFormWebhook } = require('./utils/jotformParser');
 const { mapJotFormToGHL } = require('./utils/dataMapper');
-const { createGHLContact } = require('./services/ghlService');
+const { createGHLContact, createGHLOpportunity } = require('./services/ghlService');
 const { handlePdfUpload } = require('./services/pdfService');
 const { processOpportunityStageChange } = require('./services/ghlOpportunityService');
 
@@ -46,6 +46,27 @@ app.post('/webhook/jotform', upload.none(), async (req, res) => {
     const ghlContactId = ghlResponse.contact?.id || ghlResponse.id;
     const isDuplicate = ghlResponse.isDuplicate || false;
 
+    // Create opportunity in "Pending Contact" stage
+    let opportunityResult = null;
+    const pipelineId = process.env.GHL_PIPELINE_ID || 'LFxLIUP3LCVES60i9iwN'; // Default pipeline ID
+    const pendingContactStageId = 'f0241e66-85b6-477e-9754-393aeedaef20'; // Pending Contact stage ID
+    const contactName = `${parsedData.yourFirstName} ${parsedData.yourLastName}`.trim();
+
+    try {
+      console.log(`Creating opportunity for contact ${ghlContactId} in Pending Contact stage`);
+      opportunityResult = await createGHLOpportunity(
+        ghlContactId,
+        pipelineId,
+        pendingContactStageId,
+        contactName
+      );
+      console.log('Opportunity created:', opportunityResult);
+    } catch (opportunityError) {
+      console.error('Error creating opportunity:', opportunityError.message);
+      // Don't fail the whole request if opportunity creation fails
+      opportunityResult = { success: false, error: opportunityError.message };
+    }
+
     // Check if PDF should be saved and upload directly
     let pdfUploadResult = null;
     const shouldSavePdf = parsedData.savePdf && parsedData.savePdf.trim() !== '';
@@ -78,6 +99,8 @@ app.post('/webhook/jotform', upload.none(), async (req, res) => {
       message: isDuplicate ? 'Contact updated successfully' : 'Contact created successfully',
       ghlContactId: ghlContactId,
       isDuplicate: isDuplicate,
+      opportunityCreated: opportunityResult?.id ? true : false,
+      opportunityId: opportunityResult?.id,
       pdfUploaded: pdfUploadResult?.success || false,
       pdfDetails: pdfUploadResult
     });
