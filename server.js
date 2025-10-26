@@ -208,10 +208,17 @@ app.post('/webhooks/ghl/task-completed', async (req, res) => {
     console.log('Extracted task data:', JSON.stringify(taskData, null, 2));
 
     // Validate required fields
-    if (!taskData.taskId) {
+    if (!taskData.contactId) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required field: taskId'
+        message: 'Missing required field: contactId'
+      });
+    }
+
+    if (!taskData.title) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field: task title'
       });
     }
 
