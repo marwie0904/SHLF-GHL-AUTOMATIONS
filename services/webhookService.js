@@ -3,9 +3,10 @@ const axios = require('axios');
 /**
  * Triggers PDF webhook if savePdf flag is true
  * @param {Object} submissionData - JotForm submission data
+ * @param {string} ghlContactId - GHL contact ID
  * @returns {Promise<Object|null>} Webhook response or null if not triggered
  */
-async function triggerPdfWebhook(submissionData) {
+async function triggerPdfWebhook(submissionData, ghlContactId) {
   const pdfWebhookUrl = process.env.PDF_WEBHOOK_URL;
 
   // Check if savePdf is true/truthy
@@ -24,6 +25,7 @@ async function triggerPdfWebhook(submissionData) {
   try {
     const payload = {
       submissionId: submissionData.eventId || submissionData.submitDate,
+      contactId: ghlContactId,
       firstName: submissionData.yourFirstName,
       lastName: submissionData.yourLastName,
       formTitle: submissionData.formTitle || 'Personal Information Form',

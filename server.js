@@ -41,18 +41,21 @@ app.post('/webhook/jotform', upload.none(), async (req, res) => {
     const ghlResponse = await createGHLContact(ghlContactData);
     console.log('GHL contact created:', ghlResponse);
 
+    // Extract GHL contact ID
+    const ghlContactId = ghlResponse.contact?.id || ghlResponse.id;
+
     // Check if PDF should be saved and trigger webhook
     let pdfWebhookResponse = null;
     if (parsedData.savePdf && parsedData.savePdf.trim() !== '') {
       console.log('Triggering PDF webhook');
-      pdfWebhookResponse = await triggerPdfWebhook(parsedData);
+      pdfWebhookResponse = await triggerPdfWebhook(parsedData, ghlContactId);
     }
 
     // Send success response
     res.json({
       success: true,
       message: 'Contact created successfully',
-      ghlContactId: ghlResponse.contact?.id || ghlResponse.id,
+      ghlContactId: ghlContactId,
       pdfTriggered: !!pdfWebhookResponse
     });
 
