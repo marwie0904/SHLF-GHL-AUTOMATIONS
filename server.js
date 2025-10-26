@@ -11,6 +11,7 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.text({ type: '*/*' })); // Catch any raw text data
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -21,8 +22,11 @@ app.get('/health', (req, res) => {
 app.post('/webhook/jotform', async (req, res) => {
   try {
     console.log('Received JotForm webhook');
-    console.log('Request body keys:', Object.keys(req.body));
+    console.log('Content-Type:', req.headers['content-type']);
+    console.log('Request body type:', typeof req.body);
+    console.log('Request body keys:', Object.keys(req.body || {}));
     console.log('Full request body:', JSON.stringify(req.body, null, 2));
+    console.log('Raw body (if string):', typeof req.body === 'string' ? req.body.substring(0, 500) : 'Not a string');
 
     // Parse the webhook data
     const parsedData = parseJotFormWebhook(req.body.rawRequest || req.body);
