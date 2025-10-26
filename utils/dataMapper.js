@@ -10,6 +10,7 @@ function mapJotFormToGHL(parsedData) {
     // Standard fields
     firstName: parsedData.yourFirstName || '',
     lastName: parsedData.yourLastName || '',
+    phone: parsedData.yourPhoneNumber || '',
     customFields: []
   };
 

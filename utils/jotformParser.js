@@ -89,6 +89,7 @@ function parseJotFormWebhook(rawData) {
   const dateToday = formatDate(parsedData['q6_date-today']);
   const yourFirstName = (parsedData['q3_your-name'] && parsedData['q3_your-name'].first) || '';
   const yourLastName = (parsedData['q3_your-name'] && parsedData['q3_your-name'].last) || '';
+  const yourPhoneNumber = (parsedData['q58_your-phoneNumber'] && parsedData['q58_your-phoneNumber'].full) || (parsedData['q58_phoneNumber'] && parsedData['q58_phoneNumber'].full) || '';
   const yourVeteran = parsedData['q51_you-veteran'] || '';
   const spouseFirstName = (parsedData['q7_spouse-name'] && parsedData['q7_spouse-name'].first) || '';
   const spouseLastName = (parsedData['q7_spouse-name'] && parsedData['q7_spouse-name'].last) || '';
@@ -123,6 +124,7 @@ function parseJotFormWebhook(rawData) {
     dateToday: dateToday,
     yourFirstName: yourFirstName,
     yourLastName: yourLastName,
+    yourPhoneNumber: yourPhoneNumber,
     yourVeteran: yourVeteran,
     spouseFirstName: spouseFirstName,
     spouseLastName: spouseLastName,
