@@ -210,6 +210,42 @@ async function updateOpportunityStage(opportunityId, pipelineId, stageId) {
 }
 
 /**
+ * Search for opportunities by contact ID
+ * @param {string} contactId - GHL contact ID
+ * @param {string} locationId - GHL location ID
+ * @returns {Promise<Array>} Array of opportunities for the contact
+ */
+async function searchOpportunitiesByContact(contactId, locationId) {
+  const apiKey = process.env.GHL_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  try {
+    const response = await axios.get(
+      `https://services.leadconnectorhq.com/opportunities/search`,
+      {
+        params: {
+          location_id: locationId,
+          contact_id: contactId
+        },
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    console.log(`Found ${response.data.opportunities?.length || 0} opportunities for contact ${contactId}`);
+    return response.data.opportunities || [];
+  } catch (error) {
+    console.error('Error searching opportunities:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
  * Get all tasks for a contact
  * @param {string} contactId - GHL contact ID
  * @returns {Promise<Array>} Array of tasks
@@ -246,13 +282,31 @@ async function getContactTasks(contactId) {
  */
 async function processTaskCompletion(taskData) {
   try {
-    const { contactId, taskId, opportunityId } = taskData;
+    const { contactId, taskId } = taskData;
+    let { opportunityId } = taskData;
 
     console.log(`Processing task completion: Task ${taskId}, Contact ${contactId}, Opportunity ${opportunityId}`);
 
-    if (!contactId || !opportunityId) {
-      console.log('Missing contactId or opportunityId, skipping');
-      return { success: true, message: 'No opportunity to process' };
+    if (!contactId) {
+      console.log('Missing contactId, skipping');
+      return { success: true, message: 'No contact to process' };
+    }
+
+    // If no opportunityId provided, search for it using contactId
+    if (!opportunityId) {
+      console.log('No opportunityId provided, searching by contactId...');
+      const locationId = process.env.GHL_LOCATION_ID;
+      const opportunities = await searchOpportunitiesByContact(contactId, locationId);
+
+      if (!opportunities || opportunities.length === 0) {
+        console.log('No opportunities found for this contact');
+        return { success: true, message: 'No opportunity found for contact' };
+      }
+
+      // Use the first open opportunity (you can add more logic here if needed)
+      const openOpportunity = opportunities.find(opp => opp.status === 'open');
+      opportunityId = openOpportunity?.id || opportunities[0].id;
+      console.log(`Found opportunity: ${opportunityId}`);
     }
 
     // Get opportunity details to find current stage
@@ -340,5 +394,6 @@ module.exports = {
   createGHLTask,
   processOpportunityStageChange,
   processTaskCompletion,
-  updateOpportunityStage
+  updateOpportunityStage,
+  searchOpportunitiesByContact
 };
