@@ -321,7 +321,9 @@ async function processTaskCompletion(taskData) {
       }
     );
 
-    const currentStageId = oppResponse.data.pipelineStageId;
+    console.log('Opportunity API response:', JSON.stringify(oppResponse.data, null, 2));
+
+    const currentStageId = oppResponse.data.pipelineStageId || oppResponse.data.stageId;
     const currentPipelineId = oppResponse.data.pipelineId;
 
     console.log(`Current opportunity stage: ${currentStageId}, pipeline: ${currentPipelineId}`);
