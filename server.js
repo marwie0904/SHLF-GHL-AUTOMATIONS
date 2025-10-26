@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const multer = require('multer');
 const { parseJotFormWebhook } = require('./utils/jotformParser');
 const { mapJotFormToGHL } = require('./utils/dataMapper');
 const { createGHLContact } = require('./services/ghlService');
@@ -8,10 +9,12 @@ const { triggerPdfWebhook } = require('./services/webhookService');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Multer for parsing multipart/form-data
+const upload = multer();
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.text({ type: '*/*' })); // Catch any raw text data
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -19,17 +22,15 @@ app.get('/health', (req, res) => {
 });
 
 // JotForm webhook endpoint
-app.post('/webhook/jotform', async (req, res) => {
+app.post('/webhook/jotform', upload.none(), async (req, res) => {
   try {
     console.log('Received JotForm webhook');
     console.log('Content-Type:', req.headers['content-type']);
-    console.log('Request body type:', typeof req.body);
     console.log('Request body keys:', Object.keys(req.body || {}));
-    console.log('Full request body:', JSON.stringify(req.body, null, 2));
-    console.log('Raw body (if string):', typeof req.body === 'string' ? req.body.substring(0, 500) : 'Not a string');
+    console.log('rawRequest field exists:', !!req.body.rawRequest);
 
-    // Parse the webhook data
-    const parsedData = parseJotFormWebhook(req.body.rawRequest || req.body);
+    // Parse the webhook data from the rawRequest field
+    const parsedData = parseJotFormWebhook(req.body.rawRequest);
     console.log('Parsed data:', JSON.stringify(parsedData, null, 2));
 
     // Map to GHL format
