@@ -9,8 +9,9 @@ This service receives JotForm webhook submissions and automatically creates cont
 - ✅ Maps beneficiaries (up to 5) to GHL custom fields
 - ✅ Maps bank/finance accounts (up to 5) to GHL custom fields
 - ✅ Maps current spouse, financial advisor, and accountant information
-- ✅ Creates contact in GHL via API
-- ✅ Conditionally triggers PDF webhook if requested
+- ✅ Creates or updates contact in GHL via API (handles duplicates)
+- ✅ Downloads PDF from JotForm and uploads to GHL custom field
+- ✅ Checks for existing PDFs and replaces them automatically
 
 ## Setup
 
@@ -27,9 +28,19 @@ Create a \`.env\` file in the root directory:
 \`\`\`env
 GHL_API_KEY=your_ghl_api_key_here
 GHL_LOCATION_ID=your_ghl_location_id_here
+GHL_PDF_FIELD_ID=UvlnLTzwo1TQe2KXDfzW
+JOTFORM_API_KEY=your_jotform_api_key_here
 PORT=3000
-PDF_WEBHOOK_URL=https://hook.us2.make.com/jj0powamiwz5hrry7ixpejtnin43qye9
 \`\`\`
+
+**Required Variables:**
+- \`GHL_API_KEY\` - GoHighLevel API key (Bearer token)
+- \`GHL_LOCATION_ID\` - Your GHL location ID
+- \`GHL_PDF_FIELD_ID\` - Custom field ID for PDF uploads (default: UvlnLTzwo1TQe2KXDfzW)
+- \`JOTFORM_API_KEY\` - JotForm API key for PDF downloads
+
+**Optional:**
+- \`PORT\` - Server port (defaults to 3000)
 
 ### 3. Start the Server
 
@@ -78,8 +89,12 @@ Configure this URL in your JotForm webhook settings.
 1. **Receive Webhook** → JotForm sends webhook to `/webhook/jotform`
 2. **Parse Data** → Extract and decode form fields
 3. **Map to GHL** → Convert JotForm fields to GHL custom field format
-4. **Create Contact** → Send API request to create contact in GHL
-5. **PDF Trigger** → If `savePdf` is true, trigger Make.com webhook
+4. **Create/Update Contact** → Send API request to create or update contact in GHL
+   - If duplicate detected, searches for existing contact and updates it
+5. **PDF Processing** → If `savePdf` is "Yes":
+   - Download PDF from JotForm API
+   - Check if contact has existing PDF in custom field
+   - Upload new PDF to GHL (replaces existing if present)
 
 ## Field Mappings
 

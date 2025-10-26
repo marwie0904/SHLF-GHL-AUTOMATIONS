@@ -4,7 +4,7 @@ const multer = require('multer');
 const { parseJotFormWebhook } = require('./utils/jotformParser');
 const { mapJotFormToGHL } = require('./utils/dataMapper');
 const { createGHLContact } = require('./services/ghlService');
-const { triggerPdfWebhook } = require('./services/webhookService');
+const { handlePdfUpload } = require('./services/pdfService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -45,15 +45,30 @@ app.post('/webhook/jotform', upload.none(), async (req, res) => {
     const ghlContactId = ghlResponse.contact?.id || ghlResponse.id;
     const isDuplicate = ghlResponse.isDuplicate || false;
 
-    // Check if PDF should be saved and trigger webhook
-    let pdfWebhookResponse = null;
+    // Check if PDF should be saved and upload directly
+    let pdfUploadResult = null;
     const shouldSavePdf = parsedData.savePdf && parsedData.savePdf.trim() !== '';
 
     if (shouldSavePdf) {
-      console.log(`PDF save requested (savePdf="${parsedData.savePdf}"), proceeding with webhook trigger`);
-      pdfWebhookResponse = await triggerPdfWebhook(parsedData, ghlContactId);
+      console.log(`PDF save requested (savePdf="${parsedData.savePdf}"), proceeding with PDF upload`);
+
+      try {
+        // Get submission ID and form ID from parsed data
+        const submissionId = parsedData.eventId || parsedData.fullData?.event_id || '';
+        const formId = parsedData.fullData?.formID || req.body.formID || '252972444974066';
+        const contactName = `${parsedData.yourFirstName} ${parsedData.yourLastName}`.trim();
+
+        console.log(`Downloading and uploading PDF - Submission: ${submissionId}, Form: ${formId}, Contact: ${ghlContactId}`);
+
+        pdfUploadResult = await handlePdfUpload(submissionId, formId, ghlContactId, contactName);
+        console.log('PDF upload completed:', pdfUploadResult);
+      } catch (pdfError) {
+        console.error('Error uploading PDF:', pdfError.message);
+        // Don't fail the whole request if PDF upload fails
+        pdfUploadResult = { success: false, error: pdfError.message };
+      }
     } else {
-      console.log('PDF save not requested, skipping webhook trigger');
+      console.log('PDF save not requested, skipping PDF upload');
     }
 
     // Send success response
@@ -62,7 +77,8 @@ app.post('/webhook/jotform', upload.none(), async (req, res) => {
       message: isDuplicate ? 'Contact updated successfully' : 'Contact created successfully',
       ghlContactId: ghlContactId,
       isDuplicate: isDuplicate,
-      pdfTriggered: !!pdfWebhookResponse
+      pdfUploaded: pdfUploadResult?.success || false,
+      pdfDetails: pdfUploadResult
     });
 
   } catch (error) {
