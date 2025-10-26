@@ -21,6 +21,8 @@ app.get('/health', (req, res) => {
 app.post('/webhook/jotform', async (req, res) => {
   try {
     console.log('Received JotForm webhook');
+    console.log('Request body keys:', Object.keys(req.body));
+    console.log('Full request body:', JSON.stringify(req.body, null, 2));
 
     // Parse the webhook data
     const parsedData = parseJotFormWebhook(req.body.rawRequest || req.body);
