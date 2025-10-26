@@ -5,7 +5,7 @@ const { parseJotFormWebhook } = require('./utils/jotformParser');
 const { mapJotFormToGHL } = require('./utils/dataMapper');
 const { createGHLContact, createGHLOpportunity } = require('./services/ghlService');
 const { handlePdfUpload } = require('./services/pdfService');
-const { processOpportunityStageChange } = require('./services/ghlOpportunityService');
+const { processOpportunityStageChange, processTaskCompletion } = require('./services/ghlOpportunityService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -172,6 +172,61 @@ app.post('/webhooks/ghl/opportunity-stage-changed', async (req, res) => {
 
   } catch (error) {
     console.error('Error processing GHL opportunity webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing webhook',
+      error: error.message
+    });
+  }
+});
+
+// GHL Task Completed webhook endpoint
+app.post('/webhooks/ghl/task-completed', async (req, res) => {
+  try {
+    console.log('=== GHL TASK COMPLETED WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
+
+    // Extract task data from GHL webhook
+    const taskData = {
+      taskId: req.body.id || req.body.task_id || req.body.taskId,
+      contactId: req.body.contactId || req.body.contact_id,
+      opportunityId: req.body.opportunityId || req.body.opportunity_id,
+      title: req.body.title,
+      completed: req.body.completed,
+      assignedTo: req.body.assignedTo || req.body.assigned_to
+    };
+
+    console.log('Extracted task data:', JSON.stringify(taskData, null, 2));
+
+    // Validate required fields
+    if (!taskData.taskId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field: taskId'
+      });
+    }
+
+    // Check if task is actually completed
+    if (!taskData.completed) {
+      return res.json({
+        success: true,
+        message: 'Task not completed, no action taken'
+      });
+    }
+
+    // Process the task completion
+    const result = await processTaskCompletion(taskData);
+
+    res.json({
+      success: true,
+      message: result.message,
+      details: result
+    });
+
+  } catch (error) {
+    console.error('Error processing GHL task completion webhook:', error);
     res.status(500).json({
       success: false,
       message: 'Error processing webhook',

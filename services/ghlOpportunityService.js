@@ -169,8 +169,176 @@ async function processOpportunityStageChange(webhookData) {
   }
 }
 
+/**
+ * Update opportunity pipeline and stage
+ * @param {string} opportunityId - GHL opportunity ID
+ * @param {string} pipelineId - Target pipeline ID
+ * @param {string} stageId - Target stage ID
+ * @returns {Promise<Object>} API response
+ */
+async function updateOpportunityStage(opportunityId, pipelineId, stageId) {
+  const apiKey = process.env.GHL_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  try {
+    const payload = {
+      pipelineId: pipelineId,
+      pipelineStageId: stageId
+    };
+
+    const response = await axios.put(
+      `https://services.leadconnectorhq.com/opportunities/${opportunityId}`,
+      payload,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    console.log('Opportunity stage updated successfully:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating opportunity stage:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
+ * Get all tasks for a contact
+ * @param {string} contactId - GHL contact ID
+ * @returns {Promise<Array>} Array of tasks
+ */
+async function getContactTasks(contactId) {
+  const apiKey = process.env.GHL_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  try {
+    const response = await axios.get(
+      `https://services.leadconnectorhq.com/contacts/${contactId}/tasks`,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    return response.data.tasks || [];
+  } catch (error) {
+    console.error('Error fetching contact tasks:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
+ * Process task completion and check if opportunity should be moved
+ * @param {Object} taskData - Task completion webhook data
+ * @returns {Promise<Object>} Processing result
+ */
+async function processTaskCompletion(taskData) {
+  try {
+    const { contactId, taskId, opportunityId } = taskData;
+
+    console.log(`Processing task completion: Task ${taskId}, Contact ${contactId}, Opportunity ${opportunityId}`);
+
+    if (!contactId || !opportunityId) {
+      console.log('Missing contactId or opportunityId, skipping');
+      return { success: true, message: 'No opportunity to process' };
+    }
+
+    // Get opportunity details to find current stage
+    const apiKey = process.env.GHL_API_KEY;
+    const oppResponse = await axios.get(
+      `https://services.leadconnectorhq.com/opportunities/${opportunityId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    const currentStageId = oppResponse.data.pipelineStageId;
+    const currentPipelineId = oppResponse.data.pipelineId;
+
+    console.log(`Current opportunity stage: ${currentStageId}, pipeline: ${currentPipelineId}`);
+
+    // Get all tasks for this contact to check if this was the final task
+    const allTasks = await getContactTasks(contactId);
+    const incompleteTasks = allTasks.filter(task => !task.completed && task.id !== taskId);
+
+    console.log(`Contact has ${incompleteTasks.length} incomplete tasks remaining`);
+
+    // If there are still incomplete tasks, don't move the opportunity
+    if (incompleteTasks.length > 0) {
+      console.log('Still has incomplete tasks, not moving opportunity');
+      return { success: true, message: 'Tasks still pending' };
+    }
+
+    // This was the final task - check if we should move the opportunity
+    const { data: mappings, error } = await supabase
+      .from('stage_completion_mappings')
+      .select('*')
+      .eq('source_stage_id', currentStageId)
+      .eq('active', true)
+      .limit(1);
+
+    if (error) {
+      console.error('Error fetching stage mapping:', error);
+      throw error;
+    }
+
+    if (!mappings || mappings.length === 0) {
+      console.log(`No mapping found for stage ${currentStageId}`);
+      return { success: true, message: 'No stage mapping configured' };
+    }
+
+    const mapping = mappings[0];
+
+    // Check if target stage ID is available
+    if (!mapping.target_stage_id) {
+      console.log(`Target stage ID not configured for ${mapping.source_stage_name}`);
+      return { success: true, message: 'Target stage ID not configured yet' };
+    }
+
+    console.log(`Moving opportunity to pipeline ${mapping.target_pipeline_id}, stage ${mapping.target_stage_id}`);
+
+    // Move the opportunity
+    await updateOpportunityStage(
+      opportunityId,
+      mapping.target_pipeline_id,
+      mapping.target_stage_id
+    );
+
+    return {
+      success: true,
+      message: `Opportunity moved to ${mapping.target_pipeline_name} - ${mapping.target_stage_name}`,
+      movedTo: {
+        pipelineId: mapping.target_pipeline_id,
+        pipelineName: mapping.target_pipeline_name,
+        stageId: mapping.target_stage_id,
+        stageName: mapping.target_stage_name
+      }
+    };
+  } catch (error) {
+    console.error('Error in processTaskCompletion:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   getTasksForStage,
   createGHLTask,
-  processOpportunityStageChange
+  processOpportunityStageChange,
+  processTaskCompletion,
+  updateOpportunityStage
 };
