@@ -51,10 +51,8 @@ async function createGHLTask(taskData, opportunityId, contactId) {
       title: taskData.task_name,
       body: taskData.task_description,
       assignedTo: taskData.assignee_id,
-      contactId: contactId,
-      // Calculate due date based on taskData.due_date_value and due_date_time_relation
-      // For now, we'll set it as a relative time
-      dueDate: calculateDueDate(taskData)
+      dueDate: calculateDueDate(taskData),
+      completed: false
     };
 
     const response = await axios.post(
