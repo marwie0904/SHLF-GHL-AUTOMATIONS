@@ -190,18 +190,19 @@ app.post('/webhooks/ghl/task-completed', async (req, res) => {
 
     // Extract task data from GHL webhook
     const taskData = {
-      taskId: req.body.id || req.body.task_id || req.body.taskId,
+      taskId: req.body.task?.id || req.body.id || req.body.task_id || req.body.taskId,
       contactId: req.body['contact-id'] ||
-                 req.body.contactId ||
                  req.body.contact_id ||
+                 req.body.contactId ||
                  req.body.customData?.['contact-id'],
       opportunityId: req.body['opportunity-id'] ||
                      req.body.opportunityId ||
                      req.body.opportunity_id ||
                      req.body.customData?.['opportunity-id'],
-      title: req.body.title,
-      completed: req.body.completed,
-      assignedTo: req.body.assignedTo || req.body.assigned_to
+      title: req.body.task?.title || req.body.title,
+      completed: true, // Webhook fires on task completion, so always true
+      assignedTo: req.body.task?.assignedTo || req.body.assignedTo || req.body.assigned_to,
+      dueDate: req.body.task?.dueDate
     };
 
     console.log('Extracted task data:', JSON.stringify(taskData, null, 2));

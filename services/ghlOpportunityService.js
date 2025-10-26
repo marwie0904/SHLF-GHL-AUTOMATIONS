@@ -282,10 +282,10 @@ async function getContactTasks(contactId) {
  */
 async function processTaskCompletion(taskData) {
   try {
-    const { contactId, taskId } = taskData;
-    let { opportunityId } = taskData;
+    const { contactId, title } = taskData;
+    let { opportunityId, taskId } = taskData;
 
-    console.log(`Processing task completion: Task ${taskId}, Contact ${contactId}, Opportunity ${opportunityId}`);
+    console.log(`Processing task completion: Task "${title}", Contact ${contactId}, Opportunity ${opportunityId}`);
 
     if (!contactId) {
       console.log('Missing contactId, skipping');
@@ -328,9 +328,19 @@ async function processTaskCompletion(taskData) {
 
     // Get all tasks for this contact to check if this was the final task
     const allTasks = await getContactTasks(contactId);
+
+    // If we don't have a taskId, try to find it by title
+    if (!taskId && title) {
+      const matchingTask = allTasks.find(task => task.title === title);
+      if (matchingTask) {
+        taskId = matchingTask.id;
+        console.log(`Found task ID by title: ${taskId}`);
+      }
+    }
+
     const incompleteTasks = allTasks.filter(task => !task.completed && task.id !== taskId);
 
-    console.log(`Contact has ${incompleteTasks.length} incomplete tasks remaining`);
+    console.log(`Total tasks: ${allTasks.length}, Incomplete tasks: ${incompleteTasks.length}`);
 
     // If there are still incomplete tasks, don't move the opportunity
     if (incompleteTasks.length > 0) {
