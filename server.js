@@ -37,25 +37,31 @@ app.post('/webhook/jotform', upload.none(), async (req, res) => {
     const ghlContactData = mapJotFormToGHL(parsedData);
     console.log('Mapped GHL contact data:', JSON.stringify(ghlContactData, null, 2));
 
-    // Create contact in GHL
+    // Create or update contact in GHL
     const ghlResponse = await createGHLContact(ghlContactData);
-    console.log('GHL contact created:', ghlResponse);
+    console.log('GHL response:', ghlResponse);
 
     // Extract GHL contact ID
     const ghlContactId = ghlResponse.contact?.id || ghlResponse.id;
+    const isDuplicate = ghlResponse.isDuplicate || false;
 
     // Check if PDF should be saved and trigger webhook
     let pdfWebhookResponse = null;
-    if (parsedData.savePdf && parsedData.savePdf.trim() !== '') {
-      console.log('Triggering PDF webhook');
+    const shouldSavePdf = parsedData.savePdf && parsedData.savePdf.trim() !== '';
+
+    if (shouldSavePdf) {
+      console.log(`PDF save requested (savePdf="${parsedData.savePdf}"), proceeding with webhook trigger`);
       pdfWebhookResponse = await triggerPdfWebhook(parsedData, ghlContactId);
+    } else {
+      console.log('PDF save not requested, skipping webhook trigger');
     }
 
     // Send success response
     res.json({
       success: true,
-      message: 'Contact created successfully',
+      message: isDuplicate ? 'Contact updated successfully' : 'Contact created successfully',
       ghlContactId: ghlContactId,
+      isDuplicate: isDuplicate,
       pdfTriggered: !!pdfWebhookResponse
     });
 
