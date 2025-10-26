@@ -77,11 +77,15 @@ async function createGHLTask(taskData, opportunityId, contactId) {
 
 /**
  * Calculate due date based on task configuration
+ * Uses EST (America/New_York) timezone
  * @param {Object} taskData - Task data with due_date_value and due_date_time_relation
  * @returns {string} ISO date string for due date
  */
 function calculateDueDate(taskData) {
+  // Get current time in EST (America/New_York timezone)
   const now = new Date();
+  const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+
   const value = taskData.due_date_value || 0;
   const relation = taskData.due_date_time_relation || 'days';
 
@@ -103,7 +107,11 @@ function calculateDueDate(taskData) {
       milliseconds = value * 24 * 60 * 60 * 1000; // Default to days
   }
 
-  const dueDate = new Date(now.getTime() + milliseconds);
+  const dueDate = new Date(estTime.getTime() + milliseconds);
+
+  // Log for debugging
+  console.log(`Calculating due date in EST: Current EST time: ${estTime.toISOString()}, Due date: ${dueDate.toISOString()}`);
+
   return dueDate.toISOString();
 }
 
