@@ -334,8 +334,10 @@ async function processTaskCompletion(taskData) {
 
     console.log('Opportunity API response:', JSON.stringify(oppResponse.data, null, 2));
 
-    const currentStageId = oppResponse.data.pipelineStageId || oppResponse.data.stageId;
-    const currentPipelineId = oppResponse.data.pipelineId;
+    // Data is nested under 'opportunity' object
+    const opportunityData = oppResponse.data.opportunity || oppResponse.data;
+    const currentStageId = opportunityData.pipelineStageId || opportunityData.stageId;
+    const currentPipelineId = opportunityData.pipelineId;
 
     console.log(`Current opportunity stage: ${currentStageId}, pipeline: ${currentPipelineId}`);
 
