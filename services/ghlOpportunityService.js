@@ -58,7 +58,7 @@ async function createGHLTask(taskData, opportunityId, contactId) {
     };
 
     const response = await axios.post(
-      'https://services.leadconnectorhq.com/opportunities/tasks',
+      `https://services.leadconnectorhq.com/contacts/${contactId}/tasks`,
       payload,
       {
         headers: {
