@@ -296,17 +296,28 @@ async function processTaskCompletion(taskData) {
     if (!opportunityId) {
       console.log('No opportunityId provided, searching by contactId...');
       const locationId = process.env.GHL_LOCATION_ID;
-      const opportunities = await searchOpportunitiesByContact(contactId, locationId);
 
-      if (!opportunities || opportunities.length === 0) {
-        console.log('No opportunities found for this contact');
-        return { success: true, message: 'No opportunity found for contact' };
+      try {
+        const opportunities = await searchOpportunitiesByContact(contactId, locationId);
+        console.log(`Search returned ${opportunities?.length || 0} opportunities:`, JSON.stringify(opportunities, null, 2));
+
+        if (!opportunities || opportunities.length === 0) {
+          console.log('No opportunities found for this contact');
+          return { success: true, message: 'No opportunity found for contact' };
+        }
+
+        // Use the first open opportunity (you can add more logic here if needed)
+        const openOpportunity = opportunities.find(opp => opp.status === 'open');
+        opportunityId = openOpportunity?.id || opportunities[0].id;
+
+        // Get stage info from the search result
+        const selectedOpp = openOpportunity || opportunities[0];
+        console.log(`Selected opportunity:`, JSON.stringify(selectedOpp, null, 2));
+        console.log(`Found opportunity: ${opportunityId}`);
+      } catch (searchError) {
+        console.error('Error searching for opportunity:', searchError.message);
+        throw searchError;
       }
-
-      // Use the first open opportunity (you can add more logic here if needed)
-      const openOpportunity = opportunities.find(opp => opp.status === 'open');
-      opportunityId = openOpportunity?.id || opportunities[0].id;
-      console.log(`Found opportunity: ${opportunityId}`);
     }
 
     // Get opportunity details to find current stage
