@@ -18,6 +18,7 @@ async function downloadPdfFromJotForm(submissionId, formId) {
 
   try {
     console.log('Downloading PDF from JotForm...');
+    console.log('Download URL:', downloadUrl);
     const response = await axios.get(downloadUrl, {
       responseType: 'arraybuffer'
     });
@@ -25,7 +26,7 @@ async function downloadPdfFromJotForm(submissionId, formId) {
     console.log('PDF downloaded successfully from JotForm');
     return Buffer.from(response.data);
   } catch (error) {
-    console.error('Error downloading PDF from JotForm:', error.message);
+    console.error('Error downloading PDF from JotForm:', error.response?.status, error.response?.data || error.message);
     throw error;
   }
 }

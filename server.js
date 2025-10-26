@@ -53,9 +53,9 @@ app.post('/webhook/jotform', upload.none(), async (req, res) => {
       console.log(`PDF save requested (savePdf="${parsedData.savePdf}"), proceeding with PDF upload`);
 
       try {
-        // Get submission ID and form ID from parsed data
-        const submissionId = parsedData.eventId || parsedData.fullData?.event_id || '';
-        const formId = parsedData.fullData?.formID || req.body.formID || '252972444974066';
+        // Get submission ID and form ID from webhook body (not parsed data)
+        const submissionId = req.body.submissionID || '';
+        const formId = req.body.formID || '252972444974066';
         const contactName = `${parsedData.yourFirstName} ${parsedData.yourLastName}`.trim();
 
         console.log(`Downloading and uploading PDF - Submission: ${submissionId}, Form: ${formId}, Contact: ${ghlContactId}`);
