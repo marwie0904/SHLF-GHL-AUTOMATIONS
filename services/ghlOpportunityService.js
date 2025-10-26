@@ -326,27 +326,17 @@ async function processTaskCompletion(taskData) {
 
     console.log(`Current opportunity stage: ${currentStageId}, pipeline: ${currentPipelineId}`);
 
-    // Get all tasks for this contact to check if this was the final task
-    const allTasks = await getContactTasks(contactId);
+    // Check if this is the final task that should trigger opportunity move
+    const finalTaskTitle = "Final follow-up call—if no answer, send final text and close the matter.";
 
-    // If we don't have a taskId, try to find it by title
-    if (!taskId && title) {
-      const matchingTask = allTasks.find(task => task.title === title);
-      if (matchingTask) {
-        taskId = matchingTask.id;
-        console.log(`Found task ID by title: ${taskId}`);
-      }
+    console.log(`Checking if task "${title}" matches final task: "${finalTaskTitle}"`);
+
+    if (title !== finalTaskTitle) {
+      console.log('Not the final task, skipping opportunity move');
+      return { success: true, message: 'Not the final task' };
     }
 
-    const incompleteTasks = allTasks.filter(task => !task.completed && task.id !== taskId);
-
-    console.log(`Total tasks: ${allTasks.length}, Incomplete tasks: ${incompleteTasks.length}`);
-
-    // If there are still incomplete tasks, don't move the opportunity
-    if (incompleteTasks.length > 0) {
-      console.log('Still has incomplete tasks, not moving opportunity');
-      return { success: true, message: 'Tasks still pending' };
-    }
+    console.log('Final task completed, proceeding to move opportunity');
 
     // This was the final task - check if we should move the opportunity
     const { data: mappings, error } = await supabase
