@@ -165,7 +165,7 @@ async function createGHLOpportunity(contactId, pipelineId, stageId, name) {
       pipelineId: pipelineId,
       locationId: locationId,
       name: name,
-      stageId: stageId,
+      pipelineStageId: stageId,
       status: 'open',
       contactId: contactId
     };
