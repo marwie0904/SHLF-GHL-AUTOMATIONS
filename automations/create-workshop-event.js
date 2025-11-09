@@ -134,7 +134,7 @@ async function createWorkshopGHL(workshopData, files = []) {
                 location: workshopData.workshopAddress,
                 date: workshopData.workshopDate,
                 time: workshopData.workshopTime,
-                status: 'pending', // Default status
+                status: 'scheduled', // Default status
                 // files will be handled separately if needed
             }
         };
