@@ -209,11 +209,9 @@ async function uploadFilesToMediaStorage(files, locationId) {
  * Updates workshop record with file URLs
  * @param {string} recordId - The workshop record ID
  * @param {Array<string>} fileUrls - Array of file URLs from Media Storage
- * @param {string} schemaKey - Schema key for the custom object
- * @param {string} locationId - GHL location ID
  * @returns {Promise<Object>} GHL API response
  */
-async function updateWorkshopFiles(recordId, fileUrls, schemaKey, locationId) {
+async function updateWorkshopFiles(recordId, fileUrls) {
     const apiKey = process.env.GHL_API_KEY;
 
     if (!fileUrls || fileUrls.length === 0) {
@@ -224,8 +222,9 @@ async function updateWorkshopFiles(recordId, fileUrls, schemaKey, locationId) {
     try {
         console.log(`Updating workshop record ${recordId} with ${fileUrls.length} file URL(s)...`);
 
+        // Try the simpler endpoint pattern: /objects/records/{recordId}
         const response = await axios.patch(
-            `https://services.leadconnectorhq.com/objects/${schemaKey}/records/${recordId}`,
+            `https://services.leadconnectorhq.com/objects/records/${recordId}`,
             {
                 properties: {
                     files: fileUrls
@@ -312,7 +311,7 @@ async function createWorkshopGHL(workshopData, files = []) {
 
             // Step 2: Update workshop record with file URLs
             if (fileUrls.length > 0) {
-                await updateWorkshopFiles(recordId, fileUrls, schemaKey, locationId);
+                await updateWorkshopFiles(recordId, fileUrls);
             }
         }
 
