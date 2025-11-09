@@ -41,8 +41,14 @@ async function parseRawData(rawData) {
         ? `${workshopDate.month}/${workshopDate.day}/${workshopDate.year}`
         : '';
 
-    // Format time
-    const formattedTime = workshopTime.timeInput || '';
+    // Format time with AM/PM
+    let formattedTime = '';
+    if (workshopTime.hourSelect && workshopTime.minuteSelect && workshopTime.ampm) {
+        formattedTime = `${workshopTime.hourSelect}:${workshopTime.minuteSelect} ${workshopTime.ampm}`;
+    } else if (workshopTime.timeInput) {
+        // Fallback to timeInput if structured time not available
+        formattedTime = workshopTime.timeInput;
+    }
 
     // Format address
     const fullAddress = [
