@@ -112,8 +112,8 @@ async function downloadFiles(fileUrls) {
 async function createWorkshopGHL(workshopData, files = []) {
     const apiKey = process.env.GHL_API_KEY;
     const locationId = process.env.GHL_LOCATION_ID;
-    // Try just 'workshops' as the schema key - the full path might only be for field references
-    const schemaKey = 'workshops';
+    // Correct schema key from GHL API: custom_objects.workshops
+    const schemaKey = 'custom_objects.workshops';
 
     if (!apiKey) {
         throw new Error('GHL_API_KEY not configured in environment variables');
