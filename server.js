@@ -7,6 +7,7 @@ const { createGHLContact, createGHLOpportunity } = require('./services/ghlServic
 const { handlePdfUpload } = require('./services/pdfService');
 const { processOpportunityStageChange, processTaskCompletion } = require('./services/ghlOpportunityService');
 const { main: createWorkshopEvent } = require('./automations/create-workshop-event');
+const { main: associateContactToWorkshop } = require('./automations/associate-contact-to-workshop');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -286,6 +287,53 @@ app.post('/workshop', upload.none(), async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error creating workshop',
+      error: error.message
+    });
+  }
+});
+
+// Associate contact to workshop endpoint
+app.post('/associate-contact-workshop', async (req, res) => {
+  try {
+    console.log('=== ASSOCIATE CONTACT TO WORKSHOP REQUEST RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+
+    // Extract required fields from request body
+    const { contactId, eventTitle, eventDate, eventTime, eventType } = req.body;
+
+    // Validate required fields
+    if (!contactId || !eventTitle || !eventDate || !eventTime || !eventType) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields',
+        required: ['contactId', 'eventTitle', 'eventDate', 'eventTime', 'eventType'],
+        received: { contactId, eventTitle, eventDate, eventTime, eventType }
+      });
+    }
+
+    // Process the association
+    const result = await associateContactToWorkshop({
+      contactId,
+      eventTitle,
+      eventDate,
+      eventTime,
+      eventType
+    });
+
+    res.json({
+      success: true,
+      message: 'Contact associated to workshop successfully',
+      contactId: result.contactId,
+      workshopRecordId: result.workshopRecordId,
+      details: result
+    });
+
+  } catch (error) {
+    console.error('Error associating contact to workshop:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error associating contact to workshop',
       error: error.message
     });
   }

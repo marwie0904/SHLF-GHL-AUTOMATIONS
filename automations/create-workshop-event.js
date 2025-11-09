@@ -1,5 +1,6 @@
 const axios = require('axios');
 const FormData = require('form-data');
+const { createClient } = require('@supabase/supabase-js');
 
 /**
  * Parses raw Jotform webhook data for workshop event
@@ -32,6 +33,7 @@ async function parseRawData(rawData) {
     const workshopAddress = parsedData.q7_workshopAddress || {};
     const workshopDescription = parsedData.q8_workshopDescription || '';
     const workshopNotes = parsedData.q9_workshopNotes || '';
+    const workshopType = parsedData.q11_typeOfWorkshop || '';
     const relevantFiles = parsedData.relevantFiles || [];
 
     // Format date
@@ -58,6 +60,7 @@ async function parseRawData(rawData) {
         workshopAddress: fullAddress,
         workshopDescription,
         workshopNotes,
+        workshopType,
         relevantFiles,
         rawData: parsedData
     };
@@ -253,6 +256,52 @@ async function updateWorkshopFiles(recordId, fileUrls) {
 }
 
 /**
+ * Saves workshop record to Supabase
+ * @param {string} ghlWorkshopId - GHL workshop record ID
+ * @param {Object} workshopData - Parsed workshop data
+ * @returns {Promise<Object>} Supabase response
+ */
+async function saveWorkshopToSupabase(ghlWorkshopId, workshopData) {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+        throw new Error('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not configured in environment variables');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    try {
+        console.log('Saving workshop to Supabase...');
+
+        const { data, error } = await supabase
+            .from('workshops')
+            .insert({
+                ghl_workshop_id: ghlWorkshopId,
+                title: workshopData.workshopName,
+                event_date: workshopData.workshopDate,
+                event_time: workshopData.workshopTime,
+                workshop_type: workshopData.workshopType,
+                location: workshopData.workshopAddress,
+                description: workshopData.workshopDescription,
+                notes: workshopData.workshopNotes
+            })
+            .select()
+            .single();
+
+        if (error) {
+            throw error;
+        }
+
+        console.log('Workshop saved to Supabase successfully:', data);
+        return data;
+    } catch (error) {
+        console.error('Error saving workshop to Supabase:', error.message);
+        throw error;
+    }
+}
+
+/**
  * Creates a workshop record in GHL custom object
  * @param {Object} workshopData - Parsed workshop data
  * @param {Array<Object>} files - Downloaded files (optional)
@@ -289,6 +338,7 @@ async function createWorkshopGHL(workshopData, files = []) {
                 location: workshopData.workshopAddress,
                 date: workshopData.workshopDate,
                 time: workshopData.workshopTime,
+                workshop_type: workshopData.workshopType,
                 status: 'scheduled', // Default status
             }
         };
@@ -338,12 +388,16 @@ async function main(rawData) {
         // Create workshop in GHL custom object
         const ghlResponse = await createWorkshopGHL(parsedData, files);
 
+        // Save workshop to Supabase
+        const supabaseResponse = await saveWorkshopToSupabase(ghlResponse.id, parsedData);
+
         console.log('Workshop event creation completed successfully');
         return {
             success: true,
             workshopData: parsedData,
             filesDownloaded: files.length,
-            ghlResponse: ghlResponse
+            ghlResponse: ghlResponse,
+            supabaseResponse: supabaseResponse
         };
     } catch (error) {
         console.error('Error in workshop event creation:', error.message);
@@ -357,5 +411,6 @@ module.exports = {
     downloadFiles,
     uploadFilesToMediaStorage,
     updateWorkshopFiles,
-    createWorkshopGHL
+    createWorkshopGHL,
+    saveWorkshopToSupabase
 };
