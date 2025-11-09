@@ -6,6 +6,7 @@ const { mapJotFormToGHL } = require('./utils/dataMapper');
 const { createGHLContact, createGHLOpportunity } = require('./services/ghlService');
 const { handlePdfUpload } = require('./services/pdfService');
 const { processOpportunityStageChange, processTaskCompletion } = require('./services/ghlOpportunityService');
+const { main: createWorkshopEvent } = require('./automations/create-workshop-event');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -244,6 +245,47 @@ app.post('/webhooks/ghl/task-completed', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error processing webhook',
+      error: error.message
+    });
+  }
+});
+
+// Workshop creation endpoint - Jotform webhook
+app.post('/workshop', upload.none(), async (req, res) => {
+  try {
+    console.log('=== WORKSHOP CREATION WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Content-Type:', req.headers['content-type']);
+    console.log('Request body keys:', Object.keys(req.body || {}));
+    console.log('rawRequest field exists:', !!req.body.rawRequest);
+
+    // Get raw data from Jotform webhook
+    const rawData = req.body.rawRequest;
+
+    if (!rawData) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing rawRequest data from Jotform webhook'
+      });
+    }
+
+    // Process the workshop event creation
+    const result = await createWorkshopEvent(rawData);
+
+    res.json({
+      success: true,
+      message: 'Workshop created successfully',
+      workshopName: result.workshopData.workshopName,
+      filesDownloaded: result.filesDownloaded,
+      ghlRecordId: result.ghlResponse?.id,
+      details: result
+    });
+
+  } catch (error) {
+    console.error('Error processing workshop webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating workshop',
       error: error.message
     });
   }
