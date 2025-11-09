@@ -105,6 +105,46 @@ async function downloadFiles(fileUrls) {
 }
 
 /**
+ * Gets the MIME type for a file based on extension
+ * @param {string} filename - The filename
+ * @returns {string} MIME type
+ */
+function getMimeType(filename) {
+    const ext = filename.toLowerCase().split('.').pop();
+    const mimeTypes = {
+        // Documents
+        'pdf': 'application/pdf',
+        'doc': 'application/msword',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xls': 'application/vnd.ms-excel',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'ppt': 'application/vnd.ms-powerpoint',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'txt': 'text/plain',
+        'rtf': 'application/rtf',
+        'csv': 'text/csv',
+        'zip': 'application/zip',
+        // Images
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'gif': 'image/gif',
+        'webp': 'image/webp',
+        'svg': 'image/svg+xml',
+        // Video
+        'mp4': 'video/mp4',
+        'avi': 'video/x-msvideo',
+        'mov': 'video/quicktime',
+        'wmv': 'video/x-ms-wmv',
+        // Audio
+        'mp3': 'audio/mpeg',
+        'wav': 'audio/wav',
+        'ogg': 'audio/ogg'
+    };
+    return mimeTypes[ext] || 'application/octet-stream';
+}
+
+/**
  * Uploads files to GHL Media Storage
  * @param {Array<Object>} files - Array of downloaded files with buffer and filename
  * @param {string} locationId - GHL location ID
@@ -123,13 +163,14 @@ async function uploadFilesToMediaStorage(files, locationId) {
         const uploadedUrls = [];
 
         for (const file of files) {
+            const mimeType = getMimeType(file.filename);
+            console.log(`Uploading file to Media Storage: ${file.filename} (type: ${mimeType})`);
+
             const formData = new FormData();
             formData.append('file', file.buffer, {
                 filename: file.filename,
-                contentType: 'application/octet-stream'
+                contentType: mimeType
             });
-
-            console.log(`Uploading file to Media Storage: ${file.filename}`);
 
             const response = await axios.post(
                 `https://services.leadconnectorhq.com/medias/upload-file?locationId=${locationId}`,
