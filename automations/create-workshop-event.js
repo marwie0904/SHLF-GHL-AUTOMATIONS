@@ -125,15 +125,18 @@ async function createWorkshopGHL(workshopData, files = []) {
 
     try {
         // Build the record data with actual GHL custom object field names
+        // Custom fields must be nested inside 'properties' object
         const recordData = {
             locationId: locationId,
-            name: workshopData.workshopName,
-            notes: workshopData.workshopNotes,
-            location: workshopData.workshopAddress,
-            date: workshopData.workshopDate,
-            time: workshopData.workshopTime,
-            status: 'pending', // Default status
-            // files will be handled separately if needed
+            properties: {
+                name: workshopData.workshopName,
+                notes: workshopData.workshopNotes,
+                location: workshopData.workshopAddress,
+                date: workshopData.workshopDate,
+                time: workshopData.workshopTime,
+                status: 'pending', // Default status
+                // files will be handled separately if needed
+            }
         };
 
         console.log('Creating workshop record in GHL...');
