@@ -229,9 +229,10 @@ async function createWorkshopGHL(workshopData, files = []) {
         console.log('Workshop record created successfully in GHL:', response.data);
 
         // Upload files if any
-        if (files.length > 0 && response.data.id) {
+        const recordId = response.data.record?.id;
+        if (files.length > 0 && recordId) {
             console.log('Uploading files to workshop record...');
-            await uploadFilesToGHL(files, filesFieldKey, locationId, response.data.id);
+            await uploadFilesToGHL(files, filesFieldKey, locationId, recordId);
         }
 
         return response.data;
