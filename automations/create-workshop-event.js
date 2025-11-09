@@ -273,11 +273,10 @@ async function createWorkshopGHL(workshopData, files = []) {
     }
 
     try {
-        // Upload files FIRST if any exist
-        let fileUrls = [];
+        // Note: Files are downloaded but not uploaded to GHL
+        // File upload will be handled by a separate automation
         if (files.length > 0) {
-            console.log('Uploading files to Media Storage before creating record...');
-            fileUrls = await uploadFilesToMediaStorage(files, locationId);
+            console.log(`Downloaded ${files.length} file(s) - file upload will be handled separately`);
         }
 
         // Build the record data with actual GHL custom object field names
@@ -293,12 +292,6 @@ async function createWorkshopGHL(workshopData, files = []) {
                 status: 'scheduled', // Default status
             }
         };
-
-        // Include file URLs in initial record creation if they exist
-        if (fileUrls.length > 0) {
-            recordData.properties.files = fileUrls;
-            console.log(`Including ${fileUrls.length} file URL(s) in record creation`);
-        }
 
         console.log('Creating workshop record in GHL...');
         console.log('Schema Key:', schemaKey);
