@@ -129,7 +129,7 @@ async function createWorkshopGHL(workshopData, files = []) {
         const recordData = {
             locationId: locationId,
             properties: {
-                name: workshopData.workshopName,
+                workshops: workshopData.workshopName,
                 notes: workshopData.workshopNotes,
                 location: workshopData.workshopAddress,
                 date: workshopData.workshopDate,
