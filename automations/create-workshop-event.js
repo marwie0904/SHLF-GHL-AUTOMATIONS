@@ -269,6 +269,13 @@ async function createWorkshopGHL(workshopData, files = []) {
     }
 
     try {
+        // Upload files FIRST if any exist
+        let fileUrls = [];
+        if (files.length > 0) {
+            console.log('Uploading files to Media Storage before creating record...');
+            fileUrls = await uploadFilesToMediaStorage(files, locationId);
+        }
+
         // Build the record data with actual GHL custom object field names
         // Custom fields must be nested inside 'properties' object
         const recordData = {
@@ -282,6 +289,12 @@ async function createWorkshopGHL(workshopData, files = []) {
                 status: 'scheduled', // Default status
             }
         };
+
+        // Include file URLs in initial record creation if they exist
+        if (fileUrls.length > 0) {
+            recordData.properties.files = fileUrls;
+            console.log(`Including ${fileUrls.length} file URL(s) in record creation`);
+        }
 
         console.log('Creating workshop record in GHL...');
         console.log('Schema Key:', schemaKey);
@@ -300,20 +313,6 @@ async function createWorkshopGHL(workshopData, files = []) {
         );
 
         console.log('Workshop record created successfully in GHL:', response.data);
-
-        // Upload files if any
-        const recordId = response.data.record?.id;
-        if (files.length > 0 && recordId) {
-            console.log('Processing files for workshop record...');
-
-            // Step 1: Upload files to Media Storage
-            const fileUrls = await uploadFilesToMediaStorage(files, locationId);
-
-            // Step 2: Update workshop record with file URLs
-            if (fileUrls.length > 0) {
-                await updateWorkshopFiles(recordId, fileUrls);
-            }
-        }
 
         return response.data;
     } catch (error) {
