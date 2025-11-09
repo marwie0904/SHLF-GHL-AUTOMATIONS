@@ -1,4 +1,6 @@
 const axios = require('axios');
+const FormData = require('form-data');
+const { v4: uuidv4 } = require('uuid');
 
 /**
  * Parses raw Jotform webhook data for workshop event
@@ -104,6 +106,74 @@ async function downloadFiles(fileUrls) {
 }
 
 /**
+ * Uploads files to GHL custom fields
+ * @param {Array<Object>} files - Array of downloaded files with buffer and filename
+ * @param {string} customFieldId - The custom field ID for files in GHL
+ * @param {string} locationId - GHL location ID
+ * @param {string} recordId - The ID of the created record (optional, for custom objects)
+ * @returns {Promise<Array<string>>} Array of uploaded file URLs/IDs
+ */
+async function uploadFilesToGHL(files, customFieldId, locationId, recordId = null) {
+    const apiKey = process.env.GHL_API_KEY;
+
+    if (!files || files.length === 0) {
+        console.log('No files to upload to GHL');
+        return [];
+    }
+
+    if (!customFieldId) {
+        console.warn('Custom field ID not provided, skipping file upload');
+        return [];
+    }
+
+    try {
+        console.log(`Uploading ${files.length} file(s) to GHL...`);
+
+        const formData = new FormData();
+
+        // Add each file to form data with the required naming convention
+        // Format: <custom_field_id>_<file_id>
+        files.forEach((file) => {
+            const fileId = uuidv4(); // Generate unique ID for each file
+            const fieldName = `${customFieldId}_${fileId}`;
+
+            formData.append(fieldName, file.buffer, {
+                filename: file.filename,
+                contentType: 'application/octet-stream'
+            });
+
+            console.log(`Added file to form data: ${file.filename} with field name: ${fieldName}`);
+        });
+
+        // Build the URL with query parameters
+        const uploadUrl = `https://services.leadconnectorhq.com/forms/upload-custom-files?locationId=${locationId}${recordId ? `&recordId=${recordId}` : ''}`;
+
+        console.log('Uploading to URL:', uploadUrl);
+
+        const response = await axios.post(
+            uploadUrl,
+            formData,
+            {
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Version': '2021-07-28',
+                    ...formData.getHeaders()
+                },
+                maxBodyLength: Infinity,
+                maxContentLength: Infinity
+            }
+        );
+
+        console.log('Files uploaded successfully to GHL:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('Error uploading files to GHL:', error.response?.data || error.message);
+        // Don't throw - we want the workshop to be created even if file upload fails
+        return [];
+    }
+}
+
+/**
  * Creates a workshop record in GHL custom object
  * @param {Object} workshopData - Parsed workshop data
  * @param {Array<Object>} files - Downloaded files (optional)
@@ -112,6 +182,8 @@ async function downloadFiles(fileUrls) {
 async function createWorkshopGHL(workshopData, files = []) {
     const apiKey = process.env.GHL_API_KEY;
     const locationId = process.env.GHL_LOCATION_ID;
+    // The field key for files in the workshops custom object
+    const filesFieldKey = 'files';
     // Correct schema key from GHL API: custom_objects.workshops
     const schemaKey = 'custom_objects.workshops';
 
@@ -135,7 +207,6 @@ async function createWorkshopGHL(workshopData, files = []) {
                 date: workshopData.workshopDate,
                 time: workshopData.workshopTime,
                 status: 'scheduled', // Default status
-                // files will be handled separately if needed
             }
         };
 
@@ -156,6 +227,13 @@ async function createWorkshopGHL(workshopData, files = []) {
         );
 
         console.log('Workshop record created successfully in GHL:', response.data);
+
+        // Upload files if any
+        if (files.length > 0 && response.data.id) {
+            console.log('Uploading files to workshop record...');
+            await uploadFilesToGHL(files, filesFieldKey, locationId, response.data.id);
+        }
+
         return response.data;
     } catch (error) {
         console.error('Error creating workshop record in GHL:', error.response?.data || error.message);
@@ -200,5 +278,6 @@ module.exports = {
     main,
     parseRawData,
     downloadFiles,
+    uploadFilesToGHL,
     createWorkshopGHL
 };
