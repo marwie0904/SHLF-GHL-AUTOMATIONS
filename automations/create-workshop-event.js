@@ -1,6 +1,5 @@
 const axios = require('axios');
 const FormData = require('form-data');
-const { v4: uuidv4 } = require('uuid');
 
 /**
  * Parses raw Jotform webhook data for workshop event
@@ -106,14 +105,12 @@ async function downloadFiles(fileUrls) {
 }
 
 /**
- * Uploads files to GHL custom fields
+ * Uploads files to GHL Media Storage
  * @param {Array<Object>} files - Array of downloaded files with buffer and filename
- * @param {string} customFieldId - The custom field ID for files in GHL
  * @param {string} locationId - GHL location ID
- * @param {string} recordId - The ID of the created record (optional, for custom objects)
- * @returns {Promise<Array<string>>} Array of uploaded file URLs/IDs
+ * @returns {Promise<Array<string>>} Array of uploaded file URLs
  */
-async function uploadFilesToGHL(files, customFieldId, locationId, recordId = null) {
+async function uploadFilesToMediaStorage(files, locationId) {
     const apiKey = process.env.GHL_API_KEY;
 
     if (!files || files.length === 0) {
@@ -121,55 +118,93 @@ async function uploadFilesToGHL(files, customFieldId, locationId, recordId = nul
         return [];
     }
 
-    if (!customFieldId) {
-        console.warn('Custom field ID not provided, skipping file upload');
-        return [];
-    }
-
     try {
-        console.log(`Uploading ${files.length} file(s) to GHL...`);
+        console.log(`Uploading ${files.length} file(s) to GHL Media Storage...`);
+        const uploadedUrls = [];
 
-        const formData = new FormData();
-
-        // Add each file to form data with the required naming convention
-        // Format: <custom_field_id>_<file_id>
-        files.forEach((file) => {
-            const fileId = uuidv4(); // Generate unique ID for each file
-            const fieldName = `${customFieldId}_${fileId}`;
-
-            formData.append(fieldName, file.buffer, {
+        for (const file of files) {
+            const formData = new FormData();
+            formData.append('file', file.buffer, {
                 filename: file.filename,
                 contentType: 'application/octet-stream'
             });
 
-            console.log(`Added file to form data: ${file.filename} with field name: ${fieldName}`);
-        });
+            console.log(`Uploading file to Media Storage: ${file.filename}`);
 
-        // Build the URL with query parameters
-        const uploadUrl = `https://services.leadconnectorhq.com/forms/upload-custom-files?locationId=${locationId}${recordId ? `&recordId=${recordId}` : ''}`;
+            const response = await axios.post(
+                `https://services.leadconnectorhq.com/medias/upload-file?locationId=${locationId}`,
+                formData,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Version': '2021-07-28',
+                        ...formData.getHeaders()
+                    },
+                    maxBodyLength: Infinity,
+                    maxContentLength: Infinity
+                }
+            );
 
-        console.log('Uploading to URL:', uploadUrl);
+            console.log('File uploaded to Media Storage:', response.data);
 
-        const response = await axios.post(
-            uploadUrl,
-            formData,
+            // Extract the file URL from response (adjust based on actual response structure)
+            const fileUrl = response.data.fileUrl || response.data.url || response.data.location;
+            if (fileUrl) {
+                uploadedUrls.push(fileUrl);
+                console.log(`File URL: ${fileUrl}`);
+            }
+        }
+
+        console.log(`Successfully uploaded ${uploadedUrls.length} file(s) to Media Storage`);
+        return uploadedUrls;
+    } catch (error) {
+        console.error('Error uploading files to Media Storage:', error.response?.data || error.message);
+        // Don't throw - we want the workshop to be created even if file upload fails
+        return [];
+    }
+}
+
+/**
+ * Updates workshop record with file URLs
+ * @param {string} recordId - The workshop record ID
+ * @param {Array<string>} fileUrls - Array of file URLs from Media Storage
+ * @param {string} schemaKey - Schema key for the custom object
+ * @param {string} locationId - GHL location ID
+ * @returns {Promise<Object>} GHL API response
+ */
+async function updateWorkshopFiles(recordId, fileUrls, schemaKey, locationId) {
+    const apiKey = process.env.GHL_API_KEY;
+
+    if (!fileUrls || fileUrls.length === 0) {
+        console.log('No file URLs to update');
+        return null;
+    }
+
+    try {
+        console.log(`Updating workshop record ${recordId} with ${fileUrls.length} file URL(s)...`);
+
+        const response = await axios.patch(
+            `https://services.leadconnectorhq.com/objects/${schemaKey}/records/${recordId}`,
+            {
+                properties: {
+                    files: fileUrls
+                }
+            },
             {
                 headers: {
                     'Authorization': `Bearer ${apiKey}`,
-                    'Version': '2021-07-28',
-                    ...formData.getHeaders()
-                },
-                maxBodyLength: Infinity,
-                maxContentLength: Infinity
+                    'Content-Type': 'application/json',
+                    'Version': '2021-07-28'
+                }
             }
         );
 
-        console.log('Files uploaded successfully to GHL:', response.data);
+        console.log('Workshop files updated successfully:', response.data);
         return response.data;
     } catch (error) {
-        console.error('Error uploading files to GHL:', error.response?.data || error.message);
-        // Don't throw - we want the workshop to be created even if file upload fails
-        return [];
+        console.error('Error updating workshop files:', error.response?.data || error.message);
+        // Don't throw - workshop was already created
+        return null;
     }
 }
 
@@ -182,8 +217,6 @@ async function uploadFilesToGHL(files, customFieldId, locationId, recordId = nul
 async function createWorkshopGHL(workshopData, files = []) {
     const apiKey = process.env.GHL_API_KEY;
     const locationId = process.env.GHL_LOCATION_ID;
-    // The field key for files in the workshops custom object
-    const filesFieldKey = 'files';
     // Correct schema key from GHL API: custom_objects.workshops
     const schemaKey = 'custom_objects.workshops';
 
@@ -231,8 +264,15 @@ async function createWorkshopGHL(workshopData, files = []) {
         // Upload files if any
         const recordId = response.data.record?.id;
         if (files.length > 0 && recordId) {
-            console.log('Uploading files to workshop record...');
-            await uploadFilesToGHL(files, filesFieldKey, locationId, recordId);
+            console.log('Processing files for workshop record...');
+
+            // Step 1: Upload files to Media Storage
+            const fileUrls = await uploadFilesToMediaStorage(files, locationId);
+
+            // Step 2: Update workshop record with file URLs
+            if (fileUrls.length > 0) {
+                await updateWorkshopFiles(recordId, fileUrls, schemaKey, locationId);
+            }
         }
 
         return response.data;
@@ -279,6 +319,7 @@ module.exports = {
     main,
     parseRawData,
     downloadFiles,
-    uploadFilesToGHL,
+    uploadFilesToMediaStorage,
+    updateWorkshopFiles,
     createWorkshopGHL
 };
