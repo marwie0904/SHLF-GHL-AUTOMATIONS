@@ -24,13 +24,14 @@ async function findWorkshopId(eventDetails) {
         console.log('Searching for workshop in Supabase...');
         console.log('Search criteria:', eventDetails);
 
+        // Use case-insensitive matching with ilike for more robust searching
         const { data, error } = await supabase
             .from('workshops')
             .select('ghl_workshop_id')
-            .eq('title', eventDetails.title)
+            .ilike('title', eventDetails.title)
             .eq('event_date', eventDetails.date)
-            .eq('event_time', eventDetails.time)
-            .eq('workshop_type', eventDetails.type)
+            .ilike('event_time', eventDetails.time)
+            .ilike('workshop_type', eventDetails.type)
             .single();
 
         if (error) {

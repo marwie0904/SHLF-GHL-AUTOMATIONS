@@ -41,10 +41,10 @@ async function parseRawData(rawData) {
         ? `${workshopDate.month}/${workshopDate.day}/${workshopDate.year}`
         : '';
 
-    // Format time with AM/PM
+    // Format time with AM/PM - normalize to uppercase for consistency
     let formattedTime = '';
     if (workshopTime.hourSelect && workshopTime.minuteSelect && workshopTime.ampm) {
-        formattedTime = `${workshopTime.hourSelect}:${workshopTime.minuteSelect} ${workshopTime.ampm}`;
+        formattedTime = `${workshopTime.hourSelect}:${workshopTime.minuteSelect} ${workshopTime.ampm.toUpperCase()}`;
     } else if (workshopTime.timeInput) {
         // Fallback to timeInput if structured time not available
         formattedTime = workshopTime.timeInput;
