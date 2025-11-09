@@ -361,7 +361,15 @@ async function createWorkshopGHL(workshopData, files = []) {
 
         console.log('Workshop record created successfully in GHL:', response.data);
 
-        return response.data;
+        // Extract the record ID - GHL API might return it in different formats
+        const recordId = response.data.id || response.data.recordId || response.data._id;
+        if (!recordId) {
+            console.error('No record ID found in GHL response:', response.data);
+            throw new Error('GHL API did not return a record ID');
+        }
+
+        console.log('Extracted workshop record ID:', recordId);
+        return { ...response.data, id: recordId };
     } catch (error) {
         console.error('Error creating workshop record in GHL:', error.response?.data || error.message);
         throw error;
