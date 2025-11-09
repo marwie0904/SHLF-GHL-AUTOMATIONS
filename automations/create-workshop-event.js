@@ -188,11 +188,15 @@ async function uploadFilesToMediaStorage(files, locationId) {
 
             console.log('File uploaded to Media Storage:', response.data);
 
-            // Extract the file URL from response (adjust based on actual response structure)
-            const fileUrl = response.data.fileUrl || response.data.url || response.data.location;
-            if (fileUrl) {
-                uploadedUrls.push(fileUrl);
-                console.log(`File URL: ${fileUrl}`);
+            // Extract file information from response
+            // Media Storage returns: { fileId, url, traceId }
+            // Store as object with both fileId and url for GHL custom objects
+            if (response.data.url) {
+                uploadedUrls.push({
+                    fileId: response.data.fileId,
+                    url: response.data.url
+                });
+                console.log(`File uploaded - ID: ${response.data.fileId}, URL: ${response.data.url}`);
             }
         }
 
