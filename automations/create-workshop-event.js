@@ -34,6 +34,7 @@ async function parseRawData(rawData) {
     const workshopDescription = parsedData.q8_workshopDescription || '';
     const workshopNotes = parsedData.q9_workshopNotes || '';
     const workshopType = parsedData.q11_typeOfWorkshop || '';
+    const maxCapacity = parsedData.q12_capacity || '';
     const relevantFiles = parsedData.relevantFiles || [];
 
     // Format date
@@ -67,6 +68,7 @@ async function parseRawData(rawData) {
         workshopDescription,
         workshopNotes,
         workshopType,
+        maxCapacity,
         relevantFiles,
         rawData: parsedData
     };
@@ -290,7 +292,8 @@ async function saveWorkshopToSupabase(ghlWorkshopId, workshopData) {
                 workshop_type: workshopData.workshopType,
                 location: workshopData.workshopAddress,
                 description: workshopData.workshopDescription,
-                notes: workshopData.workshopNotes
+                notes: workshopData.workshopNotes,
+                max_capacity: workshopData.maxCapacity
             })
             .select()
             .single();
@@ -345,6 +348,7 @@ async function createWorkshopGHL(workshopData, files = []) {
                 date: workshopData.workshopDate,
                 time: workshopData.workshopTime,
                 workshop_type: workshopData.workshopType,
+                max_capacity: workshopData.maxCapacity,
                 status: 'scheduled', // Default status
             }
         };
