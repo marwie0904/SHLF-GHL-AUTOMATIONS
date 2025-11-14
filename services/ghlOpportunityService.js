@@ -337,6 +337,70 @@ async function checkAppointmentsWithRetry(contactId) {
 }
 
 /**
+ * Get opportunity details by ID
+ * @param {string} opportunityId - GHL opportunity ID
+ * @returns {Promise<Object>} Opportunity details
+ */
+async function getOpportunityById(opportunityId) {
+  const apiKey = process.env.GHL_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  try {
+    const response = await axios.get(
+      `https://services.leadconnectorhq.com/opportunities/${opportunityId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    return response.data.opportunity || response.data;
+  } catch (error) {
+    console.error('Error getting opportunity:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
+ * Check if opportunity is still in the same stage with retry logic (30s, 60s delays)
+ * @param {string} opportunityId - GHL opportunity ID
+ * @param {string} expectedPipelineId - Expected pipeline ID
+ * @param {string} expectedStageId - Expected stage ID
+ * @returns {Promise<boolean>} True if opportunity moved to different stage, false if still in same stage
+ */
+async function checkOpportunityStageWithRetry(opportunityId, expectedPipelineId, expectedStageId) {
+  const delays = [30000, 60000]; // 30s, 60s
+
+  for (let i = 0; i < delays.length; i++) {
+    console.log(`Waiting ${delays[i]/1000} seconds before checking opportunity stage (attempt ${i + 1}/2)...`);
+    await new Promise(resolve => setTimeout(resolve, delays[i]));
+
+    const opportunity = await getOpportunityById(opportunityId);
+    const currentPipelineId = opportunity.pipelineId;
+    const currentStageId = opportunity.pipelineStageId;
+
+    console.log(`Current stage: Pipeline ${currentPipelineId}, Stage ${currentStageId}`);
+    console.log(`Expected stage: Pipeline ${expectedPipelineId}, Stage ${expectedStageId}`);
+
+    // Check if opportunity has moved to a different stage
+    if (currentPipelineId !== expectedPipelineId || currentStageId !== expectedStageId) {
+      console.log(`✅ Opportunity has moved from original stage (attempt ${i + 1})`);
+      return true; // Opportunity has moved
+    }
+
+    console.log(`❌ Opportunity still in same stage (attempt ${i + 1})`);
+  }
+
+  console.log('Opportunity still in same stage after all retries');
+  return false; // Still in same stage
+}
+
+/**
  * Process task completion and check if opportunity should be moved
  * @param {Object} taskData - Task completion webhook data
  * @returns {Promise<Object>} Processing result
@@ -473,5 +537,7 @@ module.exports = {
   updateOpportunityStage,
   searchOpportunitiesByContact,
   checkContactAppointments,
-  checkAppointmentsWithRetry
+  checkAppointmentsWithRetry,
+  getOpportunityById,
+  checkOpportunityStageWithRetry
 };

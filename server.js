@@ -5,7 +5,7 @@ const { parseJotFormWebhook } = require('./utils/jotformParser');
 const { mapJotFormToGHL } = require('./utils/dataMapper');
 const { createGHLContact, createGHLOpportunity } = require('./services/ghlService');
 const { handlePdfUpload } = require('./services/pdfService');
-const { processOpportunityStageChange, processTaskCompletion, checkAppointmentsWithRetry, searchOpportunitiesByContact, updateOpportunityStage } = require('./services/ghlOpportunityService');
+const { processOpportunityStageChange, processTaskCompletion, checkAppointmentsWithRetry, searchOpportunitiesByContact, updateOpportunityStage, checkOpportunityStageWithRetry } = require('./services/ghlOpportunityService');
 const { processTaskCreation } = require('./services/ghlTaskService');
 const { main: createWorkshopEvent } = require('./automations/create-workshop-event');
 const { main: associateContactToWorkshop } = require('./automations/associate-contact-to-workshop');
@@ -305,11 +305,6 @@ app.post('/webhooks/intakeSurvey', async (req, res) => {
 
     console.log(`✅ Processing intake survey for contact: ${contactId}`);
 
-    // Check for appointments with retry logic (5s, 30s, 60s)
-    console.log('🔍 Starting appointment check with retry logic...');
-    const hasAppointments = await checkAppointmentsWithRetry(contactId);
-    console.log(`📊 Appointment check result: ${hasAppointments ? 'HAS APPOINTMENTS' : 'NO APPOINTMENTS'}`);
-
     // Find opportunity for this contact
     const locationId = process.env.GHL_LOCATION_ID;
     console.log(`🔍 Searching for opportunities for contact ${contactId}...`);
@@ -331,33 +326,60 @@ app.post('/webhooks/intakeSurvey', async (req, res) => {
 
     console.log(`✅ Found opportunity: ${opportunityId} (status: ${opportunity.status || 'unknown'})`);
 
-    // Determine target stage based on appointment check
+    // Define the expected pipeline and stage to check
+    const EXPECTED_PIPELINE_ID = '6cYEonzedT5vf2Lt8rcl';
+    const EXPECTED_STAGE_ID = '042cb50b-6ef1-448e-9f64-a7455e1395b5';
+
+    console.log('🔍 Checking if opportunity is still in original stage...');
+    console.log(`   Expected Pipeline: ${EXPECTED_PIPELINE_ID}`);
+    console.log(`   Expected Stage: ${EXPECTED_STAGE_ID}`);
+
+    // Check if opportunity has moved from the original stage with retry logic (30s, 60s)
+    const hasMoved = await checkOpportunityStageWithRetry(opportunityId, EXPECTED_PIPELINE_ID, EXPECTED_STAGE_ID);
+    console.log(`📊 Stage check result: ${hasMoved ? 'OPPORTUNITY HAS MOVED' : 'STILL IN SAME STAGE'}`);
+
+    // Determine target stage based on whether opportunity moved
     const pipelineId = process.env.GHL_PIPELINE_ID || 'LFxLIUP3LCVES60i9iwN';
-    const targetStageId = hasAppointments
-      ? '1648da87-eab3-491f-a51b-8d1646137550'  // Scheduled Meeting I/V
-      : '624feffa-eab0-4aeb-b186-ee921e5e6eb7'; // Pending I/V
+    let targetStageId;
+    let stageName;
 
-    const stageName = hasAppointments ? 'Scheduled Meeting I/V' : 'Pending I/V';
+    if (hasMoved) {
+      // Opportunity has moved to a different stage - do nothing
+      console.log('✅ Opportunity already moved to a different stage, no action needed');
 
-    console.log(`📍 Moving opportunity to: ${stageName}`);
-    console.log(`   Pipeline ID: ${pipelineId}`);
-    console.log(`   Stage ID: ${targetStageId}`);
+      return res.json({
+        success: true,
+        message: 'Opportunity already moved to a different stage',
+        contactId: contactId,
+        opportunityId: opportunityId,
+        hasMoved: true,
+        action: 'none'
+      });
+    } else {
+      // Opportunity is still in the same stage - move to "Pending I/V"
+      targetStageId = '624feffa-eab0-4aeb-b186-ee921e5e6eb7'; // Pending I/V
+      stageName = 'Pending I/V';
 
-    // Update opportunity stage
-    await updateOpportunityStage(opportunityId, pipelineId, targetStageId);
+      console.log(`📍 Moving opportunity to: ${stageName}`);
+      console.log(`   Pipeline ID: ${pipelineId}`);
+      console.log(`   Stage ID: ${targetStageId}`);
 
-    console.log(`✅ Successfully moved opportunity to ${stageName}`);
+      // Update opportunity stage
+      await updateOpportunityStage(opportunityId, pipelineId, targetStageId);
 
-    res.json({
-      success: true,
-      message: `Opportunity moved to ${stageName}`,
-      contactId: contactId,
-      opportunityId: opportunityId,
-      hasAppointments: hasAppointments,
-      movedToStage: stageName,
-      pipelineId: pipelineId,
-      stageId: targetStageId
-    });
+      console.log(`✅ Successfully moved opportunity to ${stageName}`);
+
+      res.json({
+        success: true,
+        message: `Opportunity moved to ${stageName}`,
+        contactId: contactId,
+        opportunityId: opportunityId,
+        hasMoved: false,
+        movedToStage: stageName,
+        pipelineId: pipelineId,
+        stageId: targetStageId
+      });
+    }
 
   } catch (error) {
     console.error('❌ Error processing intake survey webhook:', error);
