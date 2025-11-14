@@ -276,6 +276,67 @@ async function getContactTasks(contactId) {
 }
 
 /**
+ * Check if contact has any appointments
+ * @param {string} contactId - GHL contact ID
+ * @returns {Promise<boolean>} True if appointments exist
+ */
+async function checkContactAppointments(contactId) {
+  const apiKey = process.env.GHL_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  try {
+    const response = await axios.get(
+      `https://services.leadconnectorhq.com/contacts/${contactId}/appointments`,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    const appointments = response.data.events || response.data.appointments || [];
+    const hasAppointments = appointments.length > 0;
+
+    console.log(`Contact ${contactId} has ${appointments.length} appointment(s)`);
+    return hasAppointments;
+  } catch (error) {
+    console.error('Error checking appointments:', error.response?.data || error.message);
+    // Return false on error (default to no appointments)
+    return false;
+  }
+}
+
+/**
+ * Check for appointments with retry logic (5s, 30s, 60s delays)
+ * @param {string} contactId - GHL contact ID
+ * @returns {Promise<boolean>} True if appointments found after retries
+ */
+async function checkAppointmentsWithRetry(contactId) {
+  const delays = [5000, 30000, 60000]; // 5s, 30s, 60s
+
+  for (let i = 0; i < delays.length; i++) {
+    console.log(`Waiting ${delays[i]/1000} seconds before checking appointments (attempt ${i + 1}/3)...`);
+    await new Promise(resolve => setTimeout(resolve, delays[i]));
+
+    const hasAppointments = await checkContactAppointments(contactId);
+
+    if (hasAppointments) {
+      console.log(`✅ Appointments found on attempt ${i + 1}`);
+      return true;
+    }
+
+    console.log(`❌ No appointments found on attempt ${i + 1}`);
+  }
+
+  console.log('No appointments found after all retries');
+  return false;
+}
+
+/**
  * Process task completion and check if opportunity should be moved
  * @param {Object} taskData - Task completion webhook data
  * @returns {Promise<Object>} Processing result
@@ -410,5 +471,7 @@ module.exports = {
   processOpportunityStageChange,
   processTaskCompletion,
   updateOpportunityStage,
-  searchOpportunitiesByContact
+  searchOpportunitiesByContact,
+  checkContactAppointments,
+  checkAppointmentsWithRetry
 };

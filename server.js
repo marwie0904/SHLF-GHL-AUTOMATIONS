@@ -5,7 +5,8 @@ const { parseJotFormWebhook } = require('./utils/jotformParser');
 const { mapJotFormToGHL } = require('./utils/dataMapper');
 const { createGHLContact, createGHLOpportunity } = require('./services/ghlService');
 const { handlePdfUpload } = require('./services/pdfService');
-const { processOpportunityStageChange, processTaskCompletion } = require('./services/ghlOpportunityService');
+const { processOpportunityStageChange, processTaskCompletion, checkAppointmentsWithRetry, searchOpportunitiesByContact, updateOpportunityStage } = require('./services/ghlOpportunityService');
+const { processTaskCreation } = require('./services/ghlTaskService');
 const { main: createWorkshopEvent } = require('./automations/create-workshop-event');
 const { main: associateContactToWorkshop } = require('./automations/associate-contact-to-workshop');
 
@@ -182,6 +183,33 @@ app.post('/webhooks/ghl/opportunity-stage-changed', async (req, res) => {
   }
 });
 
+// GHL Task Created webhook endpoint - Syncs tasks to Supabase
+app.post('/webhooks/ghl/task-created', async (req, res) => {
+  try {
+    console.log('=== GHL TASK CREATED WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
+
+    // Process the task creation and sync to Supabase
+    const result = await processTaskCreation(req.body);
+
+    res.json({
+      success: true,
+      message: result.message,
+      taskId: result.taskId
+    });
+
+  } catch (error) {
+    console.error('Error processing GHL task created webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing webhook',
+      error: error.message
+    });
+  }
+});
+
 // GHL Task Completed webhook endpoint
 app.post('/webhooks/ghl/task-completed', async (req, res) => {
   try {
@@ -243,6 +271,97 @@ app.post('/webhooks/ghl/task-completed', async (req, res) => {
 
   } catch (error) {
     console.error('Error processing GHL task completion webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing webhook',
+      error: error.message
+    });
+  }
+});
+
+// Intake Survey webhook endpoint
+app.post('/webhooks/intakeSurvey', async (req, res) => {
+  try {
+    console.log('=== INTAKE SURVEY WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
+
+    // Extract contactId from webhook (handle multiple possible field names)
+    const contactId = req.body['contact-id'] ||
+                      req.body.contact_id ||
+                      req.body.contactId ||
+                      req.body.customData?.['contact-id'];
+
+    // Validate required field
+    if (!contactId) {
+      console.error('❌ Missing contactId in webhook payload');
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field: contactId',
+        receivedFields: Object.keys(req.body)
+      });
+    }
+
+    console.log(`✅ Processing intake survey for contact: ${contactId}`);
+
+    // Check for appointments with retry logic (5s, 30s, 60s)
+    console.log('🔍 Starting appointment check with retry logic...');
+    const hasAppointments = await checkAppointmentsWithRetry(contactId);
+    console.log(`📊 Appointment check result: ${hasAppointments ? 'HAS APPOINTMENTS' : 'NO APPOINTMENTS'}`);
+
+    // Find opportunity for this contact
+    const locationId = process.env.GHL_LOCATION_ID;
+    console.log(`🔍 Searching for opportunities for contact ${contactId}...`);
+    const opportunities = await searchOpportunitiesByContact(contactId, locationId);
+
+    if (!opportunities || opportunities.length === 0) {
+      console.error('❌ No opportunity found for contact');
+      return res.status(404).json({
+        success: false,
+        message: 'No opportunity found for contact',
+        contactId: contactId
+      });
+    }
+
+    // Get the first open opportunity (or first one if none are open)
+    const openOpp = opportunities.find(opp => opp.status === 'open');
+    const opportunity = openOpp || opportunities[0];
+    const opportunityId = opportunity.id;
+
+    console.log(`✅ Found opportunity: ${opportunityId} (status: ${opportunity.status || 'unknown'})`);
+
+    // Determine target stage based on appointment check
+    const pipelineId = process.env.GHL_PIPELINE_ID || 'LFxLIUP3LCVES60i9iwN';
+    const targetStageId = hasAppointments
+      ? '1648da87-eab3-491f-a51b-8d1646137550'  // Scheduled Meeting I/V
+      : '624feffa-eab0-4aeb-b186-ee921e5e6eb7'; // Pending I/V
+
+    const stageName = hasAppointments ? 'Scheduled Meeting I/V' : 'Pending I/V';
+
+    console.log(`📍 Moving opportunity to: ${stageName}`);
+    console.log(`   Pipeline ID: ${pipelineId}`);
+    console.log(`   Stage ID: ${targetStageId}`);
+
+    // Update opportunity stage
+    await updateOpportunityStage(opportunityId, pipelineId, targetStageId);
+
+    console.log(`✅ Successfully moved opportunity to ${stageName}`);
+
+    res.json({
+      success: true,
+      message: `Opportunity moved to ${stageName}`,
+      contactId: contactId,
+      opportunityId: opportunityId,
+      hasAppointments: hasAppointments,
+      movedToStage: stageName,
+      pipelineId: pipelineId,
+      stageId: targetStageId
+    });
+
+  } catch (error) {
+    console.error('❌ Error processing intake survey webhook:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Error processing webhook',
