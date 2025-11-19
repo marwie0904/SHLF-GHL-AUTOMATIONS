@@ -527,8 +527,8 @@ app.post('/webhooks/intakeForm', upload.none(), async (req, res) => {
     const email = parsedData.q12_email || '';
     const phoneNumber = parsedData.q13_phoneNumber?.full || '';
 
-    // Build Jotform submission URL
-    const jotformLink = `https://www.jotform.com/inbox/252965467838072/${submissionID}`;
+    // Build Jotform submission URL with /edit
+    const jotformLink = `https://www.jotform.com/inbox/252965467838072/${submissionID}/edit`;
 
     console.log('Extracted data:', { firstName, lastName, email, phoneNumber, jotformLink });
 

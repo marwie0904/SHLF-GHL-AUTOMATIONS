@@ -177,7 +177,7 @@ async function testIntakeFormWebhook() {
       console.log('   1. Check GHL to verify the contact was created/updated');
       console.log('   2. Verify the jotform_link custom field is set correctly');
       console.log('   3. Verify the opportunity was created in the correct pipeline/stage');
-      console.log(`   4. Expected Jotform URL: https://www.jotform.com/inbox/252965467838072/${testPayload.submissionID}`);
+      console.log(`   4. Expected Jotform URL: https://www.jotform.com/inbox/252965467838072/${testPayload.submissionID}/edit`);
     }
 
   } catch (error) {
