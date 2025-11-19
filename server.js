@@ -555,7 +555,7 @@ app.post('/webhooks/intakeForm', upload.none(), async (req, res) => {
       phone: phoneNumber,
       customFields: [
         {
-          key: 'contact.jotform_link',
+          id: 'BJKwhr1OUaStUYVo6poh', // Jotform Link field ID
           field_value: jotformLink
         }
       ]
