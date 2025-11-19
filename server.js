@@ -480,6 +480,142 @@ app.post('/associate-contact-workshop', async (req, res) => {
   }
 });
 
+// Intake Form webhook endpoint - Jotform webhook
+app.post('/webhooks/intakeForm', upload.none(), async (req, res) => {
+  try {
+    console.log('=== INTAKE FORM WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Content-Type:', req.headers['content-type']);
+    console.log('Request body keys:', Object.keys(req.body || {}));
+    console.log('rawRequest exists:', !!req.body.rawRequest);
+    console.log('submissionID:', req.body.submissionID);
+
+    // Extract rawRequest and submissionID
+    const rawRequest = req.body.rawRequest;
+    const submissionID = req.body.submissionID;
+
+    if (!rawRequest) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing rawRequest field in webhook payload'
+      });
+    }
+
+    if (!submissionID) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing submissionID field in webhook payload'
+      });
+    }
+
+    // Parse rawRequest JSON string
+    let parsedData;
+    try {
+      parsedData = typeof rawRequest === 'string' ? JSON.parse(rawRequest) : rawRequest;
+    } catch (parseError) {
+      console.error('Error parsing rawRequest:', parseError);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid rawRequest JSON format',
+        error: parseError.message
+      });
+    }
+
+    // Extract contact information
+    const firstName = parsedData.q3_name?.first || '';
+    const lastName = parsedData.q3_name?.last || '';
+    const email = parsedData.q12_email || '';
+    const phoneNumber = parsedData.q13_phoneNumber?.full || '';
+
+    // Build Jotform submission URL
+    const jotformLink = `https://www.jotform.com/inbox/252965467838072/${submissionID}`;
+
+    console.log('Extracted data:', { firstName, lastName, email, phoneNumber, jotformLink });
+
+    // Validate required fields
+    if (!firstName || !lastName || !email || !phoneNumber) {
+      console.warn('Missing required contact fields:', { firstName, lastName, email, phoneNumber });
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required contact fields',
+        missingFields: {
+          firstName: !firstName,
+          lastName: !lastName,
+          email: !email,
+          phoneNumber: !phoneNumber
+        }
+      });
+    }
+
+    // Prepare GHL contact data with jotform_link custom field
+    const ghlContactData = {
+      firstName: firstName,
+      lastName: lastName,
+      email: email,
+      phone: phoneNumber,
+      customField: {
+        jotform_link: jotformLink
+      }
+    };
+
+    console.log('Creating GHL contact with data:', JSON.stringify(ghlContactData, null, 2));
+
+    // Create or update contact in GHL
+    const ghlResponse = await createGHLContact(ghlContactData);
+    const ghlContactId = ghlResponse.contact?.id || ghlResponse.id;
+    const isDuplicate = ghlResponse.isDuplicate || false;
+
+    console.log(`GHL contact ${isDuplicate ? 'updated' : 'created'} successfully:`, ghlContactId);
+
+    // Create opportunity in specified pipeline/stage
+    const pipelineId = 'LFxLIUP3LCVES60i9iwN';
+    const stageId = 'f0241e66-85b6-477e-9754-393aeedaef20';
+    const opportunityName = `${firstName} ${lastName}`;
+
+    console.log(`Creating opportunity: ${opportunityName} in pipeline ${pipelineId}, stage ${stageId}`);
+
+    let opportunityResult = null;
+    try {
+      opportunityResult = await createGHLOpportunity(
+        ghlContactId,
+        pipelineId,
+        stageId,
+        opportunityName
+      );
+      console.log('Opportunity created successfully:', opportunityResult);
+    } catch (opportunityError) {
+      console.error('Error creating opportunity:', opportunityError.message);
+      opportunityResult = { success: false, error: opportunityError.message };
+    }
+
+    // Send success response
+    res.json({
+      success: true,
+      message: isDuplicate ? 'Contact updated and opportunity created' : 'Contact and opportunity created successfully',
+      contactId: ghlContactId,
+      isDuplicate: isDuplicate,
+      jotformLink: jotformLink,
+      opportunityCreated: opportunityResult?.id ? true : false,
+      opportunityId: opportunityResult?.id,
+      data: {
+        firstName,
+        lastName,
+        email,
+        phoneNumber
+      }
+    });
+
+  } catch (error) {
+    console.error('Error processing intake form webhook:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing webhook',
+      error: error.message
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
