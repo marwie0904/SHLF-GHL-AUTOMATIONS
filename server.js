@@ -553,9 +553,12 @@ app.post('/webhooks/intakeForm', upload.none(), async (req, res) => {
       lastName: lastName,
       email: email,
       phone: phoneNumber,
-      customField: {
-        jotform_link: jotformLink
-      }
+      customFields: [
+        {
+          key: 'contact.jotform_link',
+          field_value: jotformLink
+        }
+      ]
     };
 
     console.log('Creating GHL contact with data:', JSON.stringify(ghlContactData, null, 2));
