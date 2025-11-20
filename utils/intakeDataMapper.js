@@ -47,8 +47,9 @@ function mapIntakeToGHL(parsedData) {
   const referralValue = parsedData.Referral || parsedData.referralOthers;
   addCustomField('contact.lead_source', referralValue);
 
-  // Call Details (single field - GHL added 'contact' prefix)
+  // Call Details (map to both fields)
   addCustomField('contact.contactcall_details', parsedData.callDetails);
+  addCustomField('contact.call_details', parsedData.callDetails);
 
   addCustomField('contact.what_is_your_primary_concern', parsedData.primaryConcern);
   addCustomField('contact.what_assets_are_involved', parsedData.assetsInvolved);
@@ -67,7 +68,12 @@ function mapIntakeToGHL(parsedData) {
   addCustomField('contact.is_the_caller_is_scheduling_on_behalf_of_the_potential_client', parsedData.onBehalf);
   addCustomField('contact.will_the_client_be_able_to_join_the_meeting', parsedData.clientJoinMeeting);
   addCustomField('contact.client_is_of_sound_mind_to_make_decisions', parsedData.soundMind);
-  addCustomField('contact.callers_first_name', parsedData.callersName);
+
+  // Caller Full Name - Concatenate first + last
+  const callerFullName = parsedData.callersName
+    ? `${parsedData.callersName.first || ''} ${parsedData.callersName.last || ''}`.trim()
+    : '';
+  addCustomField('contact.caller_full_name', callerFullName);
 
   // Florida Resident - use either variant
   const floridaResidentValue = parsedData.floridaResident || parsedData.docFloridaResident;
@@ -75,20 +81,47 @@ function mapIntakeToGHL(parsedData) {
 
   addCustomField('contact.specify_the_callers_concern', parsedData.specifyConcern);
   addCustomField('contact.are_you_single_or_married', parsedData.areYouSingle);
+
+  // Current Spouse - TEXTBOX_LIST format (Name\nVeteran)
+  if (parsedData.spousesName && (parsedData.spousesName.first || parsedData.spousesName.last)) {
+    const spouseName = `${parsedData.spousesName.first || ''} ${parsedData.spousesName.last || ''}`.trim();
+    // TEXTBOX_LIST format: Name\nVeteran (leave Veteran empty for now)
+    const spouseTextboxData = `${spouseName}\n`;
+    addCustomField('contact.current_spouse', spouseTextboxData);
+  }
+
   addCustomField('contact.are_you_and_your_spouse_planning_together', parsedData.spousePlanning);
+
+  // Spouse Email & Phone
+  addCustomField('contact.spouse_email', parsedData.spousesEmail);
+  addCustomField('contact.spouse_number', parsedData.spousesPhone);
+
   addCustomField('contact.do_you_have_children', parsedData.doYouhaveChildren);
   addCustomField('contact.do_you_have_existing_documents', parsedData.existingDocuments);
   addCustomField('contact.is_the_trust_funded', parsedData.trustFunded);
   addCustomField('contact.are_you_hoping_to_update_your_documents_start_from_scratch_or_just_have_your_current_documents_reviewed', parsedData.updateDocument);
 
-  // Newly Created Custom Fields (with 'contact' prefix from GHL)
-  addCustomField('contact.contactcallers_phone_number', parsedData.callersPhone);
-  addCustomField('contact.contactcallers_email', parsedData.callersEmail);
+  // Caller Phone & Email
+  addCustomField('contact.callers_phone_number', parsedData.callersPhone);
+  addCustomField('contact.caller_email', parsedData.callersEmail);
+
+  // Estate Planning Goals
   addCustomField('contact.contactestate_planning_goals', parsedData.estatePlan);
 
-  // What Documents - use whatDocuments2 as primary
-  const whatDocsValue = parsedData.whatDocuments2 || parsedData.whatDocuments;
-  addCustomField('contact.contactwhat_documents_do_you_have', whatDocsValue);
+  // What Documents - convert checkbox array to text
+  if (parsedData.whatDocuments2) {
+    let documentsText = parsedData.whatDocuments2;
+    if (Array.isArray(parsedData.whatDocuments2)) {
+      documentsText = parsedData.whatDocuments2.join(', ');
+    }
+    addCustomField('contact.contactwhat_documents_do_you_have', documentsText);
+  } else if (parsedData.whatDocuments) {
+    let documentsText = parsedData.whatDocuments;
+    if (Array.isArray(parsedData.whatDocuments)) {
+      documentsText = parsedData.whatDocuments.join(', ');
+    }
+    addCustomField('contact.contactwhat_documents_do_you_have', documentsText);
+  }
 
   addCustomField('contact.contactlegal_advice_sought', parsedData.legalAdvice);
   addCustomField('contact.contactrecent_life_events', parsedData.lifeEvent);
@@ -97,11 +130,6 @@ function mapIntakeToGHL(parsedData) {
   addCustomField('contact.contactare_you_a_beneficiary_or_trustee', parsedData.beneficiaryOrTrustee);
   addCustomField('contact.contactpower_of_attorney_poa', parsedData.poa);
   addCustomField('contact.contactpending_litigation', parsedData.pendingLitigation);
-
-  // Spouse Information (if exists in GHL - may need custom fields)
-  if (parsedData.spouseEmail) {
-    addCustomField('contact.spouse_email', parsedData.spouseEmail);
-  }
 
   // Remove customFields array if empty
   if (contactData.customFields.length === 0) {

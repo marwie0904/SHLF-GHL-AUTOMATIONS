@@ -121,31 +121,29 @@ function parseJotFormIntakeWebhook(rawRequest) {
   // Estate Plan Goals
   data.estatePlan = params.get('q44_estatePlan') || '';
 
-  // Caller Information
+  // Caller Information - Keep as object for mapper to concatenate
   const callersNameObj = extractNestedValue('q50_callersName');
-  if (callersNameObj) {
-    data.callersName = `${callersNameObj.first || ''} ${callersNameObj.last || ''}`.trim();
-  } else {
-    data.callersName = '';
-  }
+  data.callersName = {
+    first: callersNameObj?.first || '',
+    last: callersNameObj?.last || ''
+  };
 
   const callersPhoneObj = extractNestedValue('q51_callersPhone');
   data.callersPhone = callersPhoneObj?.full || '';
 
   data.callersEmail = params.get('q52_callersEmail') || '';
 
-  // Spouse Information
+  // Spouse Information - Keep as object for mapper to handle TEXTBOX_LIST format
   const spouseNameObj = extractNestedValue('q115_spousesName');
-  if (spouseNameObj) {
-    data.spouseName = `${spouseNameObj.first || ''} ${spouseNameObj.last || ''}`.trim();
-  } else {
-    data.spouseName = '';
-  }
+  data.spousesName = {
+    first: spouseNameObj?.first || '',
+    last: spouseNameObj?.last || ''
+  };
 
-  data.spouseEmail = params.get('q116_spousesEmail') || '';
+  data.spousesEmail = params.get('q116_spousesEmail') || '';
 
   const spousePhoneObj = extractNestedValue('q117_spousesPhone');
-  data.spousePhone = spousePhoneObj?.full || '';
+  data.spousesPhone = spousePhoneObj?.full || '';
 
   // On Behalf
   data.onBehalf = params.get('q45_onBehalf') || '';
