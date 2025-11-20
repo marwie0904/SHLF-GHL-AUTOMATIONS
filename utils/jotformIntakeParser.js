@@ -73,17 +73,14 @@ function parseJotFormIntakeWebhook(rawRequest) {
   data.Referral = params.get('q14_referral') || '';
   data.referralOthers = params.get('q15_referralOthers') || '';
 
-  // Medicaid Call Details (if exists in future)
-  data.medicaidCallDetails = params.get('q19_medicaidCallDetails') || '';
+  // Call Details (single field)
+  data.callDetails = params.get('q100_callDetails') || '';
 
   // Primary Concern
   data.primaryConcern = params.get('q17_primaryConcern') || '';
 
   // Assets Involved
   data.assetsInvolved = params.get('q20_assetsInvolved') || '';
-
-  // PBTA Call Details
-  data.pbtaCallDetails = params.get('q21_pbtaCallDetails') || '';
 
   // Disagreements among beneficiaries
   data.disagreements = params.get('q23_disagreements') || '';
@@ -162,9 +159,6 @@ function parseJotFormIntakeWebhook(rawRequest) {
   // Florida Resident (2 variants)
   data.floridaResident = params.get('q56_floridaResident') || '';
   data.docFloridaResident = params.get('q78_docFloridaResident') || '';
-
-  // Deed Call Details
-  data.deedCallDetails = params.get('q100_callDetails') || '';
 
   // Specify Concern
   data.specifyConcern = params.get('q39_specifyConcern') || '';

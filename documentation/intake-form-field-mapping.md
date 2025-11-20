@@ -25,10 +25,8 @@ This document maps JotForm intake form fields to GoHighLevel (GHL) custom contac
 | `practiceArea` | Practice Area | Practice Area | `contact.practice_area` | TEXT |
 | `Referral` | How did you hear about us? | Lead Source | `contact.lead_source` | SINGLE_OPTIONS |
 | `referralOthers` | If Others (referral) | Lead Source | `contact.lead_source` | SINGLE_OPTIONS |
-| `medicaidCallDetails` | Medicaid Call Details | Medicaid Call Details | `contact.medicaid_call_details` | LARGE_TEXT |
 | `primaryConcern` | What is your primary concern? | What is your primary concern? | `contact.what_is_your_primary_concern` | RADIO |
 | `assetsInvolved` | What assets are involved? | What assets are involved? | `contact.what_assets_are_involved` | LARGE_TEXT |
-| `pbtaCallDetails` | PBTA Call Details | PBTA Call Details | `contact.pbta_call_details` | LARGE_TEXT |
 | `disagreements` | Are there any disagreements among the beneficiaries? | Are there any disagreements among the beneficiaries... | `contact.are_there_any_disagreements_among_the_beneficiaries_that_we_should_be_aware_of_listen_closely_for_potential_litigation_concerns` | RADIO |
 | `assetOwnership` | Are the assets owned individually or in trust? | Are all the assets owned individually... | `contact.are_all_the_assets_owned_individually_by_the_decedent_or_are_they_in_a_trust` | RADIO |
 | `assetOwnership2` | Are the assets owned individually or in trust? (variant) | Are all the assets owned individually... | `contact.are_all_the_assets_owned_individually_by_the_decedent_or_are_they_in_a_trust` | RADIO |
@@ -44,7 +42,6 @@ This document maps JotForm intake form fields to GoHighLevel (GHL) custom contac
 | `callersName` | Caller's Name | Caller's First Name | `contact.callers_first_name` | TEXT |
 | `floridaResident` | Are you a Florida Resident? | Are you a Florida Resident? | `contact.are_you_a_florida_resident` | RADIO |
 | `docFloridaResident` | Are you a Florida Resident? (doc review) | Are you a Florida Resident? | `contact.are_you_a_florida_resident` | RADIO |
-| `deedCallDetails` | Deed call details | Deed Call Details | `contact.deed_call_details` | LARGE_TEXT |
 | `specifyConcern` | Specify the caller's concern | Specify the caller's concern. | `contact.specify_the_callers_concern` | RADIO |
 | `areYouSingle` | Are you single or married? | Are you single or married? | `contact.are_you_single_or_married` | RADIO |
 | `spousePlanning` | Are you and your spouse planning together? | Are you and your spouse planning together? | `contact.are_you_and_your_spouse_planning_together` | RADIO |
@@ -56,6 +53,7 @@ This document maps JotForm intake form fields to GoHighLevel (GHL) custom contac
 ### Custom Fields - Newly Created (2025-11-21)
 | JotForm Field ID | JotForm Question | GHL Custom Field | GHL Field Key | GHL Field ID |
 |-----------------|------------------|------------------|---------------|--------------|
+| `callDetails` | Call Details | Call Details | `contact.contactcall_details` | `VXeY8yaEx7NB8dYHCW5D` |
 | `callersPhone` | Caller's Phone Number | Caller's Phone Number | `contact.contactcallers_phone_number` | `CaiwkU81uQHihhEei8Tb` |
 | `callersEmail` | Caller's Email | Caller's Email | `contact.contactcallers_email` | `tUfSB2WZ089KZQDRPWnF` |
 | `estatePlan` | What would you like to get out of your estate plan? | Estate Planning Goals | `contact.contactestate_planning_goals` | `8MHzLZPXWKvOmoUflq8q` |
@@ -158,10 +156,8 @@ customField: {
   'contact.pdf': parsed.createPdf,
   'contact.practice_area': parsed.practiceArea,
   'contact.lead_source': parsed.Referral || parsed.referralOthers,
-  'contact.medicaid_call_details': parsed.medicaidCallDetails,
   'contact.what_is_your_primary_concern': parsed.primaryConcern,
   'contact.what_assets_are_involved': parsed.assetsInvolved,
-  'contact.pbta_call_details': parsed.pbtaCallDetails,
   'contact.are_there_any_disagreements_among_the_beneficiaries_that_we_should_be_aware_of_listen_closely_for_potential_litigation_concerns': parsed.disagreements,
   'contact.are_all_the_assets_owned_individually_by_the_decedent_or_are_they_in_a_trust': parsed.assetOwnership || parsed.assetOwnership2,
   'contact.was_there_a_will': parsed.isWill,
@@ -175,7 +171,6 @@ customField: {
   'contact.client_is_of_sound_mind_to_make_decisions': parsed.soundMind,
   'contact.callers_first_name': parsed.callersName,
   'contact.are_you_a_florida_resident': parsed.floridaResident || parsed.docFloridaResident,
-  'contact.deed_call_details': parsed.deedCallDetails,
   'contact.specify_the_callers_concern': parsed.specifyConcern,
   'contact.are_you_single_or_married': parsed.areYouSingle,
   'contact.are_you_and_your_spouse_planning_together': parsed.spousePlanning,
@@ -185,6 +180,7 @@ customField: {
   'contact.are_you_hoping_to_update_your_documents_start_from_scratch_or_just_have_your_current_documents_reviewed': parsed.updateDocument,
 
   // Newly created fields (note: GHL added 'contact' prefix)
+  'contact.contactcall_details': parsed.callDetails,
   'contact.contactcallers_phone_number': parsed.callersPhone,
   'contact.contactcallers_email': parsed.callersEmail,
   'contact.contactestate_planning_goals': parsed.estatePlan,
@@ -225,11 +221,11 @@ All 11 required custom fields have been created in GHL on 2025-11-21.
 
 ## 📊 Summary Statistics
 
-- **Total JotForm Fields**: 46
+- **Total JotForm Fields**: 44
 - **Standard Fields**: 4 (name, email, phone, address)
-- **Existing GHL Custom Fields**: 31
-- **Newly Created GHL Custom Fields**: 11
-- **Total Mappings**: 46/46 ✅
+- **Existing GHL Custom Fields**: 28
+- **Newly Created GHL Custom Fields**: 12
+- **Total Mappings**: 44/44 ✅
 - **Duplicate JotForm IDs**: 2 (resolved)
   - `whatDocuments` vs `whatDocuments2` → Use `whatDocuments2`
   - `floridaResident` vs `docFloridaResident` → Both map to same GHL field

@@ -47,10 +47,11 @@ function mapIntakeToGHL(parsedData) {
   const referralValue = parsedData.Referral || parsedData.referralOthers;
   addCustomField('contact.lead_source', referralValue);
 
-  addCustomField('contact.medicaid_call_details', parsedData.medicaidCallDetails);
+  // Call Details (single field - GHL added 'contact' prefix)
+  addCustomField('contact.contactcall_details', parsedData.callDetails);
+
   addCustomField('contact.what_is_your_primary_concern', parsedData.primaryConcern);
   addCustomField('contact.what_assets_are_involved', parsedData.assetsInvolved);
-  addCustomField('contact.pbta_call_details', parsedData.pbtaCallDetails);
   addCustomField('contact.are_there_any_disagreements_among_the_beneficiaries_that_we_should_be_aware_of_listen_closely_for_potential_litigation_concerns', parsedData.disagreements);
 
   // Asset Ownership - use either variant
@@ -72,7 +73,6 @@ function mapIntakeToGHL(parsedData) {
   const floridaResidentValue = parsedData.floridaResident || parsedData.docFloridaResident;
   addCustomField('contact.are_you_a_florida_resident', floridaResidentValue);
 
-  addCustomField('contact.deed_call_details', parsedData.deedCallDetails);
   addCustomField('contact.specify_the_callers_concern', parsedData.specifyConcern);
   addCustomField('contact.are_you_single_or_married', parsedData.areYouSingle);
   addCustomField('contact.are_you_and_your_spouse_planning_together', parsedData.spousePlanning);
