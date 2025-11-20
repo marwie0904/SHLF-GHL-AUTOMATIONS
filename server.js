@@ -3,6 +3,8 @@ const express = require('express');
 const multer = require('multer');
 const { parseJotFormWebhook } = require('./utils/jotformParser');
 const { mapJotFormToGHL } = require('./utils/dataMapper');
+const { parseJotFormIntakeWebhook } = require('./utils/jotformIntakeParser');
+const { mapIntakeToGHL } = require('./utils/intakeDataMapper');
 const { createGHLContact, createGHLOpportunity } = require('./services/ghlService');
 const { handlePdfUpload } = require('./services/pdfService');
 const { processOpportunityStageChange, processTaskCompletion, checkAppointmentsWithRetry, searchOpportunitiesByContact, updateOpportunityStage, checkOpportunityStageWithRetry } = require('./services/ghlOpportunityService');
@@ -428,6 +430,99 @@ app.post('/workshop', upload.none(), async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error creating workshop',
+      error: error.message
+    });
+  }
+});
+
+// JotForm Intake webhook endpoint
+app.post('/webhook/jotform-intake', upload.none(), async (req, res) => {
+  try {
+    console.log('=== JOTFORM INTAKE WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Content-Type:', req.headers['content-type']);
+    console.log('Request body keys:', Object.keys(req.body || {}));
+    console.log('rawRequest field exists:', !!req.body.rawRequest);
+
+    // Parse the intake webhook data from the rawRequest field
+    const parsedData = parseJotFormIntakeWebhook(req.body.rawRequest);
+    console.log('Parsed intake data:', JSON.stringify(parsedData, null, 2));
+
+    // Map to GHL format
+    const ghlContactData = mapIntakeToGHL(parsedData);
+    console.log('Mapped GHL contact data:', JSON.stringify(ghlContactData, null, 2));
+
+    // Create or update contact in GHL
+    const ghlResponse = await createGHLContact(ghlContactData);
+    console.log('GHL response:', ghlResponse);
+
+    // Extract GHL contact ID
+    const ghlContactId = ghlResponse.contact?.id || ghlResponse.id;
+    const isDuplicate = ghlResponse.isDuplicate || false;
+
+    // Create opportunity in "Pending Contact" stage
+    let opportunityResult = null;
+    const pipelineId = process.env.GHL_PIPELINE_ID || 'LFxLIUP3LCVES60i9iwN';
+    const pendingContactStageId = 'f0241e66-85b6-477e-9754-393aeedaef20'; // Pending Contact stage ID
+    const contactName = parsedData.name || `${parsedData.firstName} ${parsedData.lastName}`.trim();
+
+    try {
+      console.log(`Creating opportunity for contact ${ghlContactId} in Pending Contact stage`);
+      opportunityResult = await createGHLOpportunity(
+        ghlContactId,
+        pipelineId,
+        pendingContactStageId,
+        contactName
+      );
+      console.log('Opportunity created:', opportunityResult);
+    } catch (opportunityError) {
+      console.error('Error creating opportunity:', opportunityError.message);
+      // Don't fail the whole request if opportunity creation fails
+      opportunityResult = { success: false, error: opportunityError.message };
+    }
+
+    // Check if PDF should be saved and upload directly
+    let pdfUploadResult = null;
+    const shouldSavePdf = parsedData.createPdf && parsedData.createPdf.trim() !== '';
+
+    if (shouldSavePdf) {
+      console.log(`PDF save requested (createPdf="${parsedData.createPdf}"), proceeding with PDF upload`);
+
+      try {
+        // Get submission ID and form ID from webhook body (not parsed data)
+        const submissionId = req.body.submissionID || '';
+        const formId = req.body.formID || '252965467838072'; // Intake form ID
+
+        console.log(`Downloading and uploading PDF - Submission: ${submissionId}, Form: ${formId}, Contact: ${ghlContactId}`);
+
+        pdfUploadResult = await handlePdfUpload(submissionId, formId, ghlContactId, contactName);
+        console.log('PDF upload completed:', pdfUploadResult);
+      } catch (pdfError) {
+        console.error('Error uploading PDF:', pdfError.message);
+        // Don't fail the whole request if PDF upload fails
+        pdfUploadResult = { success: false, error: pdfError.message };
+      }
+    } else {
+      console.log('PDF save not requested, skipping PDF upload');
+    }
+
+    // Send success response
+    res.json({
+      success: true,
+      message: isDuplicate ? 'Contact updated successfully' : 'Contact created successfully',
+      ghlContactId: ghlContactId,
+      isDuplicate: isDuplicate,
+      opportunityCreated: opportunityResult?.id ? true : false,
+      opportunityId: opportunityResult?.id,
+      pdfUploaded: pdfUploadResult?.success || false,
+      pdfDetails: pdfUploadResult
+    });
+
+  } catch (error) {
+    console.error('Error processing intake webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing webhook',
       error: error.message
     });
   }

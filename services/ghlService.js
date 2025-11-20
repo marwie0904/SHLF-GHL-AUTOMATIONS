@@ -106,6 +106,8 @@ async function createGHLContact(contactData) {
       isDuplicate: false
     };
   } catch (error) {
+    console.error('GHL API Error Details:', JSON.stringify(error.response?.data, null, 2));
+
     // Check if it's a duplicate contact error
     const isDuplicateError = error.response?.status === 400 &&
                             error.response?.data?.message?.includes('duplicated');
@@ -190,4 +192,39 @@ async function createGHLOpportunity(contactId, pipelineId, stageId, name) {
   }
 }
 
-module.exports = { createGHLContact, createGHLOpportunity };
+/**
+ * Fetches all custom fields from GoHighLevel location
+ * @returns {Promise<Array>} Array of custom field objects
+ */
+async function getCustomFields() {
+  const apiKey = process.env.GHL_API_KEY;
+  const locationId = process.env.GHL_LOCATION_ID;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  if (!locationId) {
+    throw new Error('GHL_LOCATION_ID not configured in environment variables');
+  }
+
+  try {
+    const response = await axios.get(
+      `https://services.leadconnectorhq.com/locations/${locationId}/customFields`,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    console.log('Custom fields fetched successfully');
+    return response.data.customFields || [];
+  } catch (error) {
+    console.error('Error fetching custom fields:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+module.exports = { createGHLContact, createGHLOpportunity, getCustomFields };
