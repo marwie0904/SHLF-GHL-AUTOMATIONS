@@ -46,7 +46,9 @@ const FIELD_IDS = {
   'contact.contactrelationship_with_document_owners': 'm5pzXlr0KDAKz5GBidYs',
   'contact.contactare_you_a_beneficiary_or_trustee': '444HNl6rElyB7RUCOs2B',
   'contact.contactpower_of_attorney_poa': 'jpvNCxKz9bUtZzyGa8xN',
-  'contact.contactpending_litigation': 'to4Z8xSXjn66KL2scqYD'
+  'contact.contactpending_litigation': 'VScWnDNprhqiKb7Es6ln',
+  'contact.are_you_a_florida_resident__doc': 'uuIVUwtTAPXqUCLtcaig',
+  'contact.what_documents_so_you_have__doc': 'w3LM4IBJW97j20EsonwS'
 };
 
 function mapIntakeToGHL(parsedData) {
@@ -176,12 +178,24 @@ function mapIntakeToGHL(parsedData) {
     addCustomField('contact.contactwhat_documents_do_you_have', documentsText);
   }
 
+  // Doc Review specific fields
+  addCustomField('contact.are_you_a_florida_resident__doc', parsedData.docFloridaResident);
   addCustomField('contact.contactlegal_advice_sought', parsedData.legalAdvice);
   addCustomField('contact.contactrecent_life_events', parsedData.lifeEvent);
   addCustomField('contact.contactare_you_the_document_owner', parsedData.documentOwner);
   addCustomField('contact.contactrelationship_with_document_owners', parsedData.relationshipWithDocOwners);
   addCustomField('contact.contactare_you_a_beneficiary_or_trustee', parsedData.beneficiaryOrTrustee);
   addCustomField('contact.contactpower_of_attorney_poa', parsedData.poa);
+
+  // What Documents - Doc Review (maps to different field than estate planning)
+  if (parsedData.whatDocuments2) {
+    let documentsText = parsedData.whatDocuments2;
+    if (Array.isArray(parsedData.whatDocuments2)) {
+      documentsText = parsedData.whatDocuments2.join(', ');
+    }
+    addCustomField('contact.what_documents_so_you_have__doc', documentsText);
+  }
+
   addCustomField('contact.contactpending_litigation', parsedData.pendingLitigation);
 
   // Remove customFields array if empty
