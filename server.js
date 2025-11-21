@@ -603,58 +603,54 @@ app.post('/webhooks/intakeForm', upload.none(), async (req, res) => {
       });
     }
 
-    // Parse rawRequest JSON string
-    let parsedData;
-    try {
-      parsedData = typeof rawRequest === 'string' ? JSON.parse(rawRequest) : rawRequest;
-    } catch (parseError) {
-      console.error('Error parsing rawRequest:', parseError);
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid rawRequest JSON format',
-        error: parseError.message
-      });
-    }
+    // Parse JotForm intake webhook using the intake parser
+    console.log('Parsing JotForm intake data...');
+    const parsedData = parseJotFormIntakeWebhook(rawRequest);
 
-    // Extract contact information
-    const firstName = parsedData.q3_name?.first || '';
-    const lastName = parsedData.q3_name?.last || '';
-    const email = parsedData.q12_email || '';
-    const phoneNumber = parsedData.q13_phoneNumber?.full || '';
-
-    // Build Jotform submission URL with /edit
-    const jotformLink = `https://www.jotform.com/inbox/252965467838072/${submissionID}/edit`;
-
-    console.log('Extracted data:', { firstName, lastName, email, phoneNumber, jotformLink });
+    console.log('Parsed intake data:', {
+      name: parsedData.name,
+      firstName: parsedData.firstName,
+      lastName: parsedData.lastName,
+      email: parsedData.email,
+      phoneNumber: parsedData.phoneNumber,
+      practiceArea: parsedData.practiceArea,
+      callDetails: parsedData.callDetails,
+      estatePlan: parsedData.estatePlan
+    });
 
     // Validate required fields
-    if (!firstName || !lastName || !email || !phoneNumber) {
-      console.warn('Missing required contact fields:', { firstName, lastName, email, phoneNumber });
+    if (!parsedData.firstName || !parsedData.lastName || !parsedData.email || !parsedData.phoneNumber) {
+      console.warn('Missing required contact fields:', {
+        firstName: parsedData.firstName,
+        lastName: parsedData.lastName,
+        email: parsedData.email,
+        phoneNumber: parsedData.phoneNumber
+      });
       return res.status(400).json({
         success: false,
         message: 'Missing required contact fields',
         missingFields: {
-          firstName: !firstName,
-          lastName: !lastName,
-          email: !email,
-          phoneNumber: !phoneNumber
+          firstName: !parsedData.firstName,
+          lastName: !parsedData.lastName,
+          email: !parsedData.email,
+          phoneNumber: !parsedData.phoneNumber
         }
       });
     }
 
-    // Prepare GHL contact data with jotform_link custom field
-    const ghlContactData = {
-      firstName: firstName,
-      lastName: lastName,
-      email: email,
-      phone: phoneNumber,
-      customFields: [
-        {
-          id: 'BJKwhr1OUaStUYVo6poh', // Jotform Link field ID
-          field_value: jotformLink
-        }
-      ]
-    };
+    // Map to GHL format using the intake data mapper
+    console.log('Mapping to GHL contact format...');
+    const ghlContactData = mapIntakeToGHL(parsedData);
+
+    // Add Jotform Link field
+    const jotformLink = `https://www.jotform.com/inbox/252965467838072/${submissionID}/edit`;
+    if (!ghlContactData.customFields) {
+      ghlContactData.customFields = [];
+    }
+    ghlContactData.customFields.push({
+      id: 'BJKwhr1OUaStUYVo6poh', // Jotform Link field ID
+      field_value: jotformLink
+    });
 
     console.log('Creating GHL contact with data:', JSON.stringify(ghlContactData, null, 2));
 
@@ -668,7 +664,7 @@ app.post('/webhooks/intakeForm', upload.none(), async (req, res) => {
     // Create opportunity in specified pipeline/stage
     const pipelineId = 'LFxLIUP3LCVES60i9iwN';
     const stageId = 'f0241e66-85b6-477e-9754-393aeedaef20';
-    const opportunityName = `${firstName} ${lastName}`;
+    const opportunityName = parsedData.name || `${parsedData.firstName} ${parsedData.lastName}`.trim();
 
     console.log(`Creating opportunity: ${opportunityName} in pipeline ${pipelineId}, stage ${stageId}`);
 
@@ -686,6 +682,20 @@ app.post('/webhooks/intakeForm', upload.none(), async (req, res) => {
       opportunityResult = { success: false, error: opportunityError.message };
     }
 
+    // Handle PDF upload if requested
+    let pdfUploadResult = null;
+    if (parsedData.createPdf && parsedData.createPdf.trim() !== '') {
+      console.log(`PDF creation requested (createPdf="${parsedData.createPdf}"), proceeding with PDF upload`);
+      try {
+        const formId = req.body.formID || '252965467838072';
+        pdfUploadResult = await handlePdfUpload(submissionID, formId, ghlContactId, opportunityName);
+        console.log('PDF upload completed:', pdfUploadResult);
+      } catch (pdfError) {
+        console.error('Error uploading PDF:', pdfError.message);
+        pdfUploadResult = { success: false, error: pdfError.message };
+      }
+    }
+
     // Send success response
     res.json({
       success: true,
@@ -695,11 +705,14 @@ app.post('/webhooks/intakeForm', upload.none(), async (req, res) => {
       jotformLink: jotformLink,
       opportunityCreated: opportunityResult?.id ? true : false,
       opportunityId: opportunityResult?.id,
+      pdfUploaded: pdfUploadResult?.success || false,
+      pdfDetails: pdfUploadResult,
       data: {
-        firstName,
-        lastName,
-        email,
-        phoneNumber
+        firstName: parsedData.firstName,
+        lastName: parsedData.lastName,
+        email: parsedData.email,
+        phoneNumber: parsedData.phoneNumber,
+        practiceArea: parsedData.practiceArea
       }
     });
 
