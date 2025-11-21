@@ -26,6 +26,7 @@ const FIELD_IDS = {
   'contact.caller_full_name': '2ShvnG8RIHnxx8s3hTn3',
   'contact.are_you_a_florida_resident': 'VoJV82JGngzfNN0WeZ30',
   'contact.specify_the_callers_concern': 'qY1wsvCHcAuaYLlhS4hS',
+  'contact.caller_does_not_have_a_trust_and_would_like_to_seek_counsel_on_whether_they_need_a_trust_set_up_for_my_property': 'ZKh6TYwT4NcRpwrmzR2G',
   'contact.are_you_single_or_married': 'SdnOpiR5HTA7fLdnAccX',
   'contact.current_spouse': 'PaWSsRF646ra92Wl28BO',
   'contact.are_you_and_your_spouse_planning_together': 'MRuVXS73El19MxjSr0Ig',
@@ -131,6 +132,7 @@ function mapIntakeToGHL(parsedData) {
   addCustomField('contact.are_you_a_florida_resident', floridaResidentValue);
 
   addCustomField('contact.specify_the_callers_concern', parsedData.specifyConcern);
+  addCustomField('contact.caller_does_not_have_a_trust_and_would_like_to_seek_counsel_on_whether_they_need_a_trust_set_up_for_my_property', parsedData.needTrust);
   addCustomField('contact.are_you_single_or_married', parsedData.areYouSingle);
 
   // Current Spouse - TEXTBOX_LIST format (Name\nVeteran)
