@@ -8,27 +8,35 @@ function parseJotFormIntakeWebhook(rawRequest) {
     throw new Error('rawRequest is required');
   }
 
-  // Parse the URL-encoded string
-  const params = new URLSearchParams(rawRequest);
+  // Parse rawRequest - can be JSON string or URL-encoded
+  let parsed;
+  if (typeof rawRequest === 'string' && rawRequest.trim().startsWith('{')) {
+    // JSON format
+    parsed = JSON.parse(rawRequest);
+  } else if (typeof rawRequest === 'object') {
+    // Already parsed object
+    parsed = rawRequest;
+  } else {
+    // URL-encoded format
+    const params = new URLSearchParams(rawRequest);
+    parsed = {};
+    for (const [key, value] of params.entries()) {
+      parsed[key] = value;
+    }
+  }
+
   const data = {};
 
-  // Helper to extract nested object values
+  // Helper to extract nested object values from parsed data
   const extractNestedValue = (key) => {
-    const nestedParams = {};
-    for (const [paramKey, paramValue] of params.entries()) {
-      if (paramKey.startsWith(key + '[')) {
-        const nestedKey = paramKey.match(/\[([^\]]+)\]/)[1];
-        nestedParams[nestedKey] = paramValue;
-      }
-    }
-    return Object.keys(nestedParams).length > 0 ? nestedParams : null;
+    return parsed[key] || null;
   };
 
   // Practice Area
-  data.practiceArea = params.get('q10_practiceArea') || '';
+  data.practiceArea = parsed.q10_practiceArea || '';
 
   // Create PDF
-  data.createPdf = params.get('q6_createPdf') || '';
+  data.createPdf = parsed.q6_createPdf || '';
 
   // Name (full name object)
   const nameObj = extractNestedValue('q3_name');
@@ -45,7 +53,7 @@ function parseJotFormIntakeWebhook(rawRequest) {
   }
 
   // Email
-  data.email = params.get('q12_email') || '';
+  data.email = parsed.q12_email || '';
 
   // Phone Number
   const phoneObj = extractNestedValue('q13_phoneNumber');
@@ -70,33 +78,33 @@ function parseJotFormIntakeWebhook(rawRequest) {
   }
 
   // Referral
-  data.Referral = params.get('q14_referral') || '';
-  data.referralOthers = params.get('q15_referralOthers') || '';
+  data.Referral = parsed.q14_referral || '';
+  data.referralOthers = parsed.q15_referralOthers || '';
 
   // Call Details (single field)
-  data.callDetails = params.get('q100_callDetails') || '';
+  data.callDetails = parsed.q100_callDetails || '';
 
   // Primary Concern
-  data.primaryConcern = params.get('q17_primaryConcern') || '';
+  data.primaryConcern = parsed.q17_primaryConcern || '';
 
   // Assets Involved
-  data.assetsInvolved = params.get('q20_assetsInvolved') || '';
+  data.assetsInvolved = parsed.q20_assetsInvolved || '';
 
   // Disagreements among beneficiaries
-  data.disagreements = params.get('q23_disagreements') || '';
+  data.disagreements = parsed.q23_disagreements || '';
 
   // Asset Ownership (2 variants)
-  data.assetOwnership = params.get('q25_assetOwnership') || '';
-  data.assetOwnership2 = params.get('q26_assetOwnership2') || '';
+  data.assetOwnership = parsed.q25_assetOwnership || '';
+  data.assetOwnership2 = parsed.q26_assetOwnership2 || '';
 
   // Was there a will?
-  data.isWill = params.get('q28_isWill') || '';
+  data.isWill = parsed.q28_isWill || '';
 
   // Original Will
-  data.originalWill = params.get('q29_originalWill') || '';
+  data.originalWill = parsed.q29_originalWill || '';
 
   // Assets to Probate
-  data.assetsProbate = params.get('q32_assetsProbate') || '';
+  data.assetsProbate = parsed.q32_assetsProbate || '';
 
   // Decedent Name
   const decedentNameObj = extractNestedValue('q33_decedentName');
@@ -116,10 +124,10 @@ function parseJotFormIntakeWebhook(rawRequest) {
   }
 
   // Decedent Relationship
-  data.decedentRelationship = params.get('q35_decedentRelationship') || '';
+  data.decedentRelationship = parsed.q35_decedentRelationship || '';
 
   // Estate Plan Goals
-  data.estatePlan = params.get('q44_estatePlan') || '';
+  data.estatePlan = parsed.q44_estatePlan || '';
 
   // Caller Information - Keep as object for mapper to concatenate
   const callersNameObj = extractNestedValue('q50_callersName');
@@ -131,7 +139,7 @@ function parseJotFormIntakeWebhook(rawRequest) {
   const callersPhoneObj = extractNestedValue('q51_callersPhone');
   data.callersPhone = callersPhoneObj?.full || '';
 
-  data.callersEmail = params.get('q52_callersEmail') || '';
+  data.callersEmail = parsed.q52_callersEmail || '';
 
   // Spouse Information - Keep as object for mapper to handle TEXTBOX_LIST format
   const spouseNameObj = extractNestedValue('q115_spousesName');
@@ -140,60 +148,60 @@ function parseJotFormIntakeWebhook(rawRequest) {
     last: spouseNameObj?.last || ''
   };
 
-  data.spousesEmail = params.get('q116_spousesEmail') || '';
+  data.spousesEmail = parsed.q116_spousesEmail || '';
 
   const spousePhoneObj = extractNestedValue('q117_spousesPhone');
   data.spousesPhone = spousePhoneObj?.full || '';
 
   // On Behalf
-  data.onBehalf = params.get('q45_onBehalf') || '';
+  data.onBehalf = parsed.q45_onBehalf || '';
 
   // Client Join Meeting
-  data.clientJoinMeeting = params.get('q53_clientJoinMeeting') || '';
+  data.clientJoinMeeting = parsed.q53_clientJoinMeeting || '';
 
   // Sound Mind
-  data.soundMind = params.get('q54_soundMind') || '';
+  data.soundMind = parsed.q54_soundMind || '';
 
   // Florida Resident (2 variants)
-  data.floridaResident = params.get('q56_floridaResident') || '';
-  data.docFloridaResident = params.get('q78_docFloridaResident') || '';
+  data.floridaResident = parsed.q56_floridaResident || '';
+  data.docFloridaResident = parsed.q78_docFloridaResident || '';
 
   // Specify Concern
-  data.specifyConcern = params.get('q39_specifyConcern') || '';
+  data.specifyConcern = parsed.q39_specifyConcern || '';
 
   // Need Trust
-  data.needTrust = params.get('q40_needTrust') || '';
+  data.needTrust = parsed.q40_needTrust || '';
 
   // Are you single or married
-  data.areYouSingle = params.get('q59_areYouSingle') || '';
+  data.areYouSingle = parsed.q59_areYouSingle || '';
 
   // Spouse Planning
-  data.spousePlanning = params.get('q60_spousePlanning') || '';
+  data.spousePlanning = parsed.q60_spousePlanning || '';
 
   // Do you have children
-  data.doYouhaveChildren = params.get('q61_doYouhaveChildren') || '';
+  data.doYouhaveChildren = parsed.q61_doYouhaveChildren || '';
 
   // Existing Documents
-  data.existingDocuments = params.get('q62_existingDocuments') || '';
+  data.existingDocuments = parsed.q62_existingDocuments || '';
 
   // What Documents (2 variants)
-  data.whatDocuments = params.get('q64_whatDocuments') || '';
-  data.whatDocuments2 = params.get('q87_whatDocuments2') || '';
+  data.whatDocuments = parsed.q64_whatDocuments || '';
+  data.whatDocuments2 = parsed.q87_whatDocuments2 || '';
 
   // Trust Funded
-  data.trustFunded = params.get('q65_trustFunded') || '';
+  data.trustFunded = parsed.q65_trustFunded || '';
 
   // Update Documents
-  data.updateDocument = params.get('q66_updateDocument') || '';
+  data.updateDocument = parsed.q66_updateDocument || '';
 
   // Doc Review Specific Fields
-  data.legalAdvice = params.get('q79_legalAdvice') || '';
-  data.lifeEvent = params.get('q80_lifeEvent') || '';
-  data.documentOwner = params.get('q81_documentOwner') || '';
-  data.relationshipWithDocOwners = params.get('q84_relationshipWithDocOwners') || '';
-  data.beneficiaryOrTrustee = params.get('q85_beneficiaryOrTrustee') || '';
-  data.poa = params.get('q86_poa') || '';
-  data.pendingLitigation = params.get('q89_pendingLitigation') || '';
+  data.legalAdvice = parsed.q79_legalAdvice || '';
+  data.lifeEvent = parsed.q80_lifeEvent || '';
+  data.documentOwner = parsed.q81_documentOwner || '';
+  data.relationshipWithDocOwners = parsed.q84_relationshipWithDocOwners || '';
+  data.beneficiaryOrTrustee = parsed.q85_beneficiaryOrTrustee || '';
+  data.poa = parsed.q86_poa || '';
+  data.pendingLitigation = parsed.q89_pendingLitigation || '';
 
   return data;
 }
