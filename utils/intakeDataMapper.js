@@ -80,16 +80,23 @@ function mapIntakeToGHL(parsedData) {
 
   // Helper function to add custom field only if value exists
   const addCustomField = (fieldKey, value) => {
-    if (value && value.trim() !== '') {
-      const fieldId = FIELD_IDS[fieldKey];
-      if (fieldId) {
-        contactData.customFields.push({
-          id: fieldId,
-          field_value: value
-        });
-      } else {
-        console.warn(`No field ID found for key: ${fieldKey}`);
-      }
+    // Skip if value is null, undefined, or empty
+    if (!value) return;
+
+    // Convert value to string if it's not already
+    const stringValue = typeof value === 'string' ? value : String(value);
+
+    // Skip if empty string after trim
+    if (stringValue.trim() === '') return;
+
+    const fieldId = FIELD_IDS[fieldKey];
+    if (fieldId) {
+      contactData.customFields.push({
+        id: fieldId,
+        field_value: stringValue
+      });
+    } else {
+      console.warn(`No field ID found for key: ${fieldKey}`);
     }
   };
 
