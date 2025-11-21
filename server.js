@@ -660,6 +660,7 @@ app.post('/webhooks/intakeForm', upload.none(), async (req, res) => {
     const isDuplicate = ghlResponse.isDuplicate || false;
 
     console.log(`GHL contact ${isDuplicate ? 'updated' : 'created'} successfully:`, ghlContactId);
+    console.log('GHL response customFields:', JSON.stringify(ghlResponse.contact?.customFields || ghlResponse.customFields, null, 2));
 
     // Create opportunity in specified pipeline/stage
     const pipelineId = 'LFxLIUP3LCVES60i9iwN';
