@@ -12,6 +12,7 @@ const FIELD_IDS = {
   'contact.what_is_your_primary_concern': 'D0tJaiWjvhuoeDs612Ly',
   'contact.what_assets_are_involved': 'Kb5B5V6lhtJK0zNuY1AK',
   'contact.are_there_any_disagreements_among_the_beneficiaries_that_we_should_be_aware_of_listen_closely_for_potential_litigation_concerns': 'hvyeRjtJaVzr258ygiA9',
+  'contact.are_the_assets_owned_individually_by_the_decedent_or_are_they_in_a_trust': 'f9P0TxDhzfUt9iJ3dSM4',
   'contact.are_all_the_assets_owned_individually_by_the_decedent_or_are_they_in_a_trust': '03uwVudxUoprB0qkYL9b',
   'contact.was_there_a_will': 'ZEUgmck6XDxSbBPuoF9Z',
   'contact.do_you_have_access_to_the_original_will': 'VcMVgPtDJDsw1JQgjPZB',
@@ -105,9 +106,9 @@ function mapIntakeToGHL(parsedData) {
   addCustomField('contact.what_assets_are_involved', parsedData.assetsInvolved);
   addCustomField('contact.are_there_any_disagreements_among_the_beneficiaries_that_we_should_be_aware_of_listen_closely_for_potential_litigation_concerns', parsedData.disagreements);
 
-  // Asset Ownership - use either variant
-  const assetOwnershipValue = parsedData.assetOwnership || parsedData.assetOwnership2;
-  addCustomField('contact.are_all_the_assets_owned_individually_by_the_decedent_or_are_they_in_a_trust', assetOwnershipValue);
+  // Asset Ownership (map both variants to their respective fields)
+  addCustomField('contact.are_the_assets_owned_individually_by_the_decedent_or_are_they_in_a_trust', parsedData.assetOwnership);
+  addCustomField('contact.are_all_the_assets_owned_individually_by_the_decedent_or_are_they_in_a_trust', parsedData.assetOwnership2);
 
   addCustomField('contact.was_there_a_will', parsedData.isWill);
   addCustomField('contact.do_you_have_access_to_the_original_will', parsedData.originalWill);
