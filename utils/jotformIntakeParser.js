@@ -199,8 +199,8 @@ function parseJotFormIntakeWebhook(rawRequest) {
   data.lifeEvent = parsed.q80_lifeEvent || '';
   data.documentOwner = parsed.q81_documentOwner || '';
   data.relationshipWithDocOwners = parsed.q84_relationshipWithDocOwners || '';
-  data.beneficiaryOrTrustee = parsed.q85_beneficiaryOrTrustee || '';
-  data.poa = parsed.q86_poa || '';
+  data.beneficiaryOrTrustee = parsed.q85_beneficiaryTrustee || '';
+  data.poa = parsed.q86_poaAuthority || '';
   data.pendingLitigation = parsed.q89_pendingLitigation || '';
 
   return data;
