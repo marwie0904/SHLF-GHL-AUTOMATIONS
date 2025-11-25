@@ -11,6 +11,9 @@ const axios = require('axios');
 
 const BASE_URL = 'https://services.leadconnectorhq.com';
 
+// Form ID for "Phone and Email" booking form
+const APPOINTMENT_FORM_ID = 'GqeCjaSjT4CqyZuKWLIK';
+
 // Form field IDs for "Phone and Email" booking form
 const FORM_FIELDS = {
   MEETING_TYPE: '88Kn2yxnw7Xe6LNjHyQl',  // e.g., "EP Discovery Call"
@@ -230,10 +233,7 @@ async function processAppointmentCreated(webhookData) {
     throw new Error('Missing required field: appointmentId');
   }
 
-  const formId = process.env.GHL_APPOINTMENT_FORM_ID;
-  if (!formId) {
-    throw new Error('GHL_APPOINTMENT_FORM_ID not configured in environment variables');
-  }
+  const formId = APPOINTMENT_FORM_ID;
 
   let meetingData = null;
   let calendarName = null;
