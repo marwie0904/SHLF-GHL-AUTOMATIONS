@@ -293,12 +293,14 @@ app.post('/webhooks/ghl/appointment-created', async (req, res) => {
 
     // Extract appointment data from GHL webhook
     // Handle multiple possible field names for flexibility
+    // NOTE: The correct appointmentId is in calendar.appointmentId or customData.appointmentId
+    // The root-level "id" is NOT the appointment ID
     const webhookData = {
-      appointmentId: req.body.appointment_id ||
+      appointmentId: req.body.calendar?.appointmentId ||
+                     req.body.customData?.appointmentId ||
+                     req.body.appointment_id ||
                      req.body.appointmentId ||
-                     req.body['appointment-id'] ||
-                     req.body.id ||
-                     req.body.customData?.appointmentId,
+                     req.body['appointment-id'],
       contactId: req.body.contact_id ||
                  req.body.contactId ||
                  req.body['contact-id'] ||
@@ -316,13 +318,15 @@ app.post('/webhooks/ghl/appointment-created', async (req, res) => {
       contactName: req.body.contact_name ||
                    req.body.contactName ||
                    req.body['contact-name'] ||
-                   req.body.name ||
+                   req.body.full_name ||
                    req.body.customData?.contactName,
-      calendarId: req.body.calendar_id ||
+      calendarId: req.body.calendar?.id ||
+                  req.body.calendar_id ||
                   req.body.calendarId ||
                   req.body['calendar-id'] ||
                   req.body.customData?.calendarId,
-      calendarName: req.body.calendar_name ||
+      calendarName: req.body.calendar?.calendarName ||
+                    req.body.calendar_name ||
                     req.body.calendarName ||
                     req.body['calendar-name'] ||
                     req.body.customData?.calendarName
