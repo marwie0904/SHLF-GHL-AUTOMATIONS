@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { searchOpportunitiesByContact } = require('./ghlOpportunityService');
 
 /**
  * Appointment Service
@@ -7,6 +8,7 @@ const axios = require('axios');
  * - Fetching form submissions
  * - Getting calendar details
  * - Updating appointment titles
+ * - Moving opportunities to stages based on meeting type
  */
 
 const BASE_URL = 'https://services.leadconnectorhq.com';
@@ -426,18 +428,39 @@ async function processAppointmentCreated(webhookData) {
   // Step 5: Move opportunity to appropriate stage based on meeting type
   let stageUpdateResult = null;
   let targetStageId = null;
+  let resolvedOpportunityId = opportunityId;
 
-  if (opportunityId && meetingData?.meetingType) {
+  // If no opportunityId provided, try to find it by contactId
+  if (!resolvedOpportunityId && contactId) {
+    console.log(`🔍 No opportunity ID provided, searching by contact ID: ${contactId}`);
+    try {
+      const locationId = process.env.GHL_LOCATION_ID;
+      const opportunities = await searchOpportunitiesByContact(contactId, locationId);
+
+      if (opportunities && opportunities.length > 0) {
+        // Use the first open opportunity, or fall back to the first one
+        const openOpportunity = opportunities.find(opp => opp.status === 'open');
+        resolvedOpportunityId = openOpportunity?.id || opportunities[0].id;
+        console.log(`✅ Found opportunity: ${resolvedOpportunityId} (from ${opportunities.length} total)`);
+      } else {
+        console.log('⚠️ No opportunities found for contact');
+      }
+    } catch (searchError) {
+      console.error('❌ Error searching for opportunity:', searchError.message);
+    }
+  }
+
+  if (resolvedOpportunityId && meetingData?.meetingType) {
     targetStageId = getStageIdForMeetingType(meetingData.meetingType);
 
     if (targetStageId) {
       console.log(`📊 Meeting type "${meetingData.meetingType}" maps to stage ID: ${targetStageId}`);
-      stageUpdateResult = await updateOpportunityStage(opportunityId, targetStageId);
+      stageUpdateResult = await updateOpportunityStage(resolvedOpportunityId, targetStageId);
     } else {
       console.log(`⚠️ No stage mapping found for meeting type: "${meetingData.meetingType}", skipping stage update`);
     }
-  } else if (!opportunityId) {
-    console.log('⚠️ No opportunity ID provided, skipping stage update');
+  } else if (!resolvedOpportunityId) {
+    console.log('⚠️ No opportunity ID found (not provided and not found by contact), skipping stage update');
   } else if (!meetingData?.meetingType) {
     console.log('⚠️ No meeting type found, skipping stage update');
   }
@@ -449,7 +472,8 @@ async function processAppointmentCreated(webhookData) {
     usedFallback: !meetingData || !meetingData.meetingType,
     meetingData,
     stageUpdate: {
-      opportunityId,
+      opportunityId: resolvedOpportunityId,
+      opportunityIdSource: opportunityId ? 'webhook' : (resolvedOpportunityId ? 'search' : 'not_found'),
       targetStageId,
       success: !!stageUpdateResult
     }
