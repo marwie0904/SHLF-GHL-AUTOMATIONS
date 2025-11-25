@@ -21,6 +21,22 @@ const FORM_FIELDS = {
   CALENDAR_NAME: 'calendar_name'           // e.g., "Gabby Ang's Personal Calendar"
 };
 
+// Meeting Type to Stage ID mapping
+// Discovery calls → "Scheduled Discovery Call" stage
+// Meetings → "Scheduled I/V" stage
+const MEETING_TYPE_STAGE_MAP = {
+  // Discovery Calls → Scheduled Discovery Call
+  'EP Discovery Call': '12d9abab-c81b-4215-8b2a-020bc3fff912',
+  'Deed Discovery Call': '12d9abab-c81b-4215-8b2a-020bc3fff912',
+  'Probate Discovery Call': '12d9abab-c81b-4215-8b2a-020bc3fff912',
+  // Meetings → Scheduled I/V
+  'Trust Admin Meeting': '1648da87-eab3-491f-a51b-8d1646137550',
+  'Initial Meeting': '1648da87-eab3-491f-a51b-8d1646137550',
+  'Vision Meeting': '1648da87-eab3-491f-a51b-8d1646137550',
+  'Doc Review Meeting': '1648da87-eab3-491f-a51b-8d1646137550',
+  'Standalone Meeting': '1648da87-eab3-491f-a51b-8d1646137550',
+};
+
 /**
  * Gets common headers for GHL API requests
  */
@@ -217,6 +233,58 @@ async function updateAppointmentTitle(appointmentId, title, calendarId) {
 }
 
 /**
+ * Gets the stage ID for a given meeting type
+ * @param {string} meetingType - The meeting type (e.g., "EP Discovery Call")
+ * @returns {string|null} Stage ID or null if no mapping exists
+ */
+function getStageIdForMeetingType(meetingType) {
+  if (!meetingType) return null;
+  return MEETING_TYPE_STAGE_MAP[meetingType] || null;
+}
+
+/**
+ * Updates an opportunity's stage in GHL
+ * @param {string} opportunityId - The opportunity ID
+ * @param {string} stageId - The target stage ID
+ * @returns {Promise<Object|null>} Updated opportunity data or null on failure
+ */
+async function updateOpportunityStage(opportunityId, stageId) {
+  if (!opportunityId) {
+    console.log('⚠️ No opportunity ID provided, skipping stage update');
+    return null;
+  }
+
+  if (!stageId) {
+    console.log('⚠️ No stage ID provided, skipping stage update');
+    return null;
+  }
+
+  const pipelineId = process.env.GHL_PIPELINE_ID || 'LFxLIUP3LCVES60i9iwN';
+
+  try {
+    console.log(`📊 Updating opportunity ${opportunityId} to stage ${stageId}`);
+
+    const response = await axios.put(
+      `${BASE_URL}/opportunities/${opportunityId}`,
+      {
+        pipelineId: pipelineId,
+        pipelineStageId: stageId
+      },
+      {
+        headers: getHeaders()
+      }
+    );
+
+    console.log(`✅ Opportunity stage updated successfully`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error updating opportunity stage:', error.response?.data || error.message);
+    // Don't throw - stage update failure shouldn't fail the whole webhook
+    return null;
+  }
+}
+
+/**
  * Cleans calendar name by removing "'s Personal Calendar" suffix
  * @param {string} calendarName - Raw calendar name (e.g., "Gabby Ang's Personal Calendar")
  * @returns {string} Cleaned name (e.g., "Gabby Ang")
@@ -252,7 +320,8 @@ function buildAppointmentTitle({ calendarName, meetingType, meeting, contactName
 
 /**
  * Main handler for appointment created webhook
- * Fetches form submission, extracts data, and updates appointment title
+ * Fetches form submission, extracts data, updates appointment title,
+ * and moves opportunity to appropriate stage based on meeting type
  *
  * @param {Object} webhookData - Webhook payload from GHL
  * @param {string} webhookData.appointmentId - The appointment ID
@@ -262,6 +331,7 @@ function buildAppointmentTitle({ calendarName, meetingType, meeting, contactName
  * @param {string} webhookData.contactName - Contact full name
  * @param {string} webhookData.calendarId - Calendar ID (optional)
  * @param {string} webhookData.calendarName - Calendar name (optional, preferred over calendarId)
+ * @param {string} webhookData.opportunityId - Opportunity ID (optional, for stage updates)
  * @returns {Promise<Object>} Result of the operation
  */
 async function processAppointmentCreated(webhookData) {
@@ -272,7 +342,8 @@ async function processAppointmentCreated(webhookData) {
     contactEmail,
     contactName,
     calendarId,
-    calendarName: webhookCalendarName
+    calendarName: webhookCalendarName,
+    opportunityId
   } = webhookData;
 
   console.log('\n========================================');
@@ -284,6 +355,7 @@ async function processAppointmentCreated(webhookData) {
   console.log(`Email: ${contactEmail}`);
   console.log(`Calendar ID: ${calendarId || '(not provided)'}`);
   console.log(`Calendar Name: ${webhookCalendarName || '(not provided)'}`);
+  console.log(`Opportunity ID: ${opportunityId || '(not provided)'}`);
   console.log('========================================\n');
 
   // Validate required fields
@@ -351,12 +423,36 @@ async function processAppointmentCreated(webhookData) {
   // Step 4: Update the appointment
   const result = await updateAppointmentTitle(appointmentId, title, calendarId);
 
+  // Step 5: Move opportunity to appropriate stage based on meeting type
+  let stageUpdateResult = null;
+  let targetStageId = null;
+
+  if (opportunityId && meetingData?.meetingType) {
+    targetStageId = getStageIdForMeetingType(meetingData.meetingType);
+
+    if (targetStageId) {
+      console.log(`📊 Meeting type "${meetingData.meetingType}" maps to stage ID: ${targetStageId}`);
+      stageUpdateResult = await updateOpportunityStage(opportunityId, targetStageId);
+    } else {
+      console.log(`⚠️ No stage mapping found for meeting type: "${meetingData.meetingType}", skipping stage update`);
+    }
+  } else if (!opportunityId) {
+    console.log('⚠️ No opportunity ID provided, skipping stage update');
+  } else if (!meetingData?.meetingType) {
+    console.log('⚠️ No meeting type found, skipping stage update');
+  }
+
   return {
     success: true,
     appointmentId,
     title,
     usedFallback: !meetingData || !meetingData.meetingType,
-    meetingData
+    meetingData,
+    stageUpdate: {
+      opportunityId,
+      targetStageId,
+      success: !!stageUpdateResult
+    }
   };
 }
 
@@ -368,5 +464,8 @@ module.exports = {
   updateAppointmentTitle,
   buildAppointmentTitle,
   processAppointmentCreated,
-  FORM_FIELDS
+  getStageIdForMeetingType,
+  updateOpportunityStage,
+  FORM_FIELDS,
+  MEETING_TYPE_STAGE_MAP
 };

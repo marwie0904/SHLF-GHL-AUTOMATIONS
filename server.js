@@ -329,7 +329,11 @@ app.post('/webhooks/ghl/appointment-created', async (req, res) => {
                     req.body.calendar_name ||
                     req.body.calendarName ||
                     req.body['calendar-name'] ||
-                    req.body.customData?.calendarName
+                    req.body.customData?.calendarName,
+      opportunityId: req.body.customData?.opportunityId ||
+                     req.body.opportunity_id ||
+                     req.body.opportunityId ||
+                     req.body['opportunity-id']
     };
 
     console.log('Extracted webhook data:', JSON.stringify(webhookData, null, 2));
@@ -353,7 +357,8 @@ app.post('/webhooks/ghl/appointment-created', async (req, res) => {
       appointmentId: result.appointmentId,
       newTitle: result.title,
       usedFallback: result.usedFallback,
-      meetingData: result.meetingData
+      meetingData: result.meetingData,
+      stageUpdate: result.stageUpdate
     });
 
   } catch (error) {
