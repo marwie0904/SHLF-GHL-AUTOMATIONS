@@ -135,10 +135,39 @@ async function getCalendar(calendarId) {
 }
 
 /**
+ * Fetches an appointment by ID
+ * @param {string} appointmentId - The appointment/event ID
+ * @returns {Promise<Object|null>} Appointment data or null if not found
+ */
+async function getAppointment(appointmentId) {
+  if (!appointmentId) {
+    console.log('⚠️ No appointment ID provided');
+    return null;
+  }
+
+  try {
+    console.log(`📅 Fetching appointment: ${appointmentId}`);
+
+    const response = await axios.get(
+      `${BASE_URL}/calendars/events/appointments/${appointmentId}`,
+      {
+        headers: getHeaders()
+      }
+    );
+
+    console.log(`✅ Found appointment`);
+    return response.data.event || response.data;
+  } catch (error) {
+    console.error('❌ Error fetching appointment:', error.response?.data || error.message);
+    return null;
+  }
+}
+
+/**
  * Updates an appointment's title
  * @param {string} appointmentId - The appointment/event ID
  * @param {string} title - New title for the appointment
- * @param {string} calendarId - The calendar ID (required for the endpoint)
+ * @param {string} calendarId - The calendar ID (required for the endpoint, will be fetched if not provided)
  * @returns {Promise<Object|null>} Updated appointment data or null on failure
  */
 async function updateAppointmentTitle(appointmentId, title, calendarId) {
@@ -150,6 +179,21 @@ async function updateAppointmentTitle(appointmentId, title, calendarId) {
     throw new Error('Title is required');
   }
 
+  // If calendarId not provided, fetch the appointment to get it
+  let resolvedCalendarId = calendarId;
+  if (!resolvedCalendarId) {
+    console.log('📅 No calendarId provided, fetching appointment to get it...');
+    const appointment = await getAppointment(appointmentId);
+    if (appointment) {
+      resolvedCalendarId = appointment.calendarId;
+      console.log(`📅 Got calendarId from appointment: ${resolvedCalendarId}`);
+    }
+  }
+
+  if (!resolvedCalendarId) {
+    throw new Error('Could not determine calendarId for appointment update');
+  }
+
   try {
     console.log(`📝 Updating appointment ${appointmentId} title to: "${title}"`);
 
@@ -157,7 +201,7 @@ async function updateAppointmentTitle(appointmentId, title, calendarId) {
       `${BASE_URL}/calendars/events/appointments/${appointmentId}`,
       {
         title: title,
-        calendarId: calendarId
+        calendarId: resolvedCalendarId
       },
       {
         headers: getHeaders()
@@ -306,6 +350,7 @@ module.exports = {
   getFormSubmission,
   extractMeetingData,
   getCalendar,
+  getAppointment,
   updateAppointmentTitle,
   buildAppointmentTitle,
   processAppointmentCreated,
