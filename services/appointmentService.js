@@ -217,6 +217,18 @@ async function updateAppointmentTitle(appointmentId, title, calendarId) {
 }
 
 /**
+ * Cleans calendar name by removing "'s Personal Calendar" suffix
+ * @param {string} calendarName - Raw calendar name (e.g., "Gabby Ang's Personal Calendar")
+ * @returns {string} Cleaned name (e.g., "Gabby Ang")
+ */
+function cleanCalendarName(calendarName) {
+  if (!calendarName) return null;
+
+  // Remove "'s Personal Calendar" suffix if present
+  return calendarName.replace(/'s Personal Calendar$/i, '').trim();
+}
+
+/**
  * Builds the appointment title from components
  * @param {Object} options - Title components
  * @param {string} options.calendarName - Calendar name
@@ -228,7 +240,9 @@ async function updateAppointmentTitle(appointmentId, title, calendarId) {
 function buildAppointmentTitle({ calendarName, meetingType, meeting, contactName }) {
   const parts = [];
 
-  if (calendarName) parts.push(calendarName);
+  // Clean calendar name (remove "'s Personal Calendar" suffix)
+  const cleanedCalendarName = cleanCalendarName(calendarName);
+  if (cleanedCalendarName) parts.push(cleanedCalendarName);
   if (meetingType) parts.push(meetingType);
   if (meeting) parts.push(meeting);
   if (contactName) parts.push(contactName);
