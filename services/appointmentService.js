@@ -1,0 +1,313 @@
+const axios = require('axios');
+
+/**
+ * Appointment Service
+ *
+ * Handles GHL appointment operations including:
+ * - Fetching form submissions
+ * - Getting calendar details
+ * - Updating appointment titles
+ */
+
+const BASE_URL = 'https://services.leadconnectorhq.com';
+
+// Form field IDs for "Phone and Email" booking form
+const FORM_FIELDS = {
+  MEETING_TYPE: '88Kn2yxnw7Xe6LNjHyQl',  // e.g., "EP Discovery Call"
+  MEETING: 'VJRoVeTD3qyr8haFP2N0',        // e.g., "Naples"
+  CALENDAR_NAME: 'calendar_name'           // e.g., "Gabby Ang's Personal Calendar"
+};
+
+/**
+ * Gets common headers for GHL API requests
+ */
+function getHeaders() {
+  const apiKey = process.env.GHL_API_KEY;
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  return {
+    'Authorization': `Bearer ${apiKey}`,
+    'Version': '2021-07-28',
+    'Content-Type': 'application/json'
+  };
+}
+
+/**
+ * Fetches form submission by phone or email
+ * @param {string} formId - The form ID to search
+ * @param {string} searchQuery - Phone number or email to search
+ * @returns {Promise<Object|null>} Form submission data or null if not found
+ */
+async function getFormSubmission(formId, searchQuery) {
+  const locationId = process.env.GHL_LOCATION_ID;
+
+  if (!locationId) {
+    throw new Error('GHL_LOCATION_ID not configured in environment variables');
+  }
+
+  if (!searchQuery) {
+    console.log('⚠️ No search query provided for form submission lookup');
+    return null;
+  }
+
+  // Clean the search query for phone numbers
+  // - Remove + prefix (causes regex issues in GHL API)
+  // - Remove spaces (phone might come as "+63 2 1319 4213")
+  let cleanedQuery = searchQuery;
+  if (searchQuery.match(/^[\+\d\s]+$/)) {
+    // It looks like a phone number - clean it
+    cleanedQuery = searchQuery.replace(/[\+\s]/g, '');
+    console.log(`📞 Cleaned phone number: "${searchQuery}" -> "${cleanedQuery}"`);
+  }
+
+  try {
+    console.log(`🔍 Searching form submissions for: ${cleanedQuery}`);
+
+    const response = await axios.get(`${BASE_URL}/forms/submissions`, {
+      params: {
+        locationId: locationId,
+        formId: formId,
+        q: cleanedQuery,
+        limit: 1
+      },
+      headers: getHeaders()
+    });
+
+    const submissions = response.data.submissions || [];
+
+    if (submissions.length === 0) {
+      console.log(`⚠️ No form submission found for query: ${searchQuery}`);
+      return null;
+    }
+
+    console.log(`✅ Found form submission: ${submissions[0].id}`);
+    return submissions[0];
+  } catch (error) {
+    console.error('❌ Error fetching form submission:', error.response?.data || error.message);
+    return null;
+  }
+}
+
+/**
+ * Extracts meeting data from form submission
+ * @param {Object} submission - Form submission object
+ * @returns {Object} Extracted meeting data
+ */
+function extractMeetingData(submission) {
+  const others = submission.others || {};
+
+  return {
+    meetingType: others[FORM_FIELDS.MEETING_TYPE] || null,
+    meeting: others[FORM_FIELDS.MEETING] || null,
+    calendarName: others[FORM_FIELDS.CALENDAR_NAME] || null
+  };
+}
+
+/**
+ * Fetches calendar details by ID
+ * @param {string} calendarId - The calendar ID
+ * @returns {Promise<Object|null>} Calendar data or null if not found
+ */
+async function getCalendar(calendarId) {
+  if (!calendarId) {
+    console.log('⚠️ No calendar ID provided');
+    return null;
+  }
+
+  try {
+    console.log(`📅 Fetching calendar: ${calendarId}`);
+
+    const response = await axios.get(`${BASE_URL}/calendars/${calendarId}`, {
+      headers: getHeaders()
+    });
+
+    console.log(`✅ Found calendar: ${response.data.calendar?.name || 'Unknown'}`);
+    return response.data.calendar || response.data;
+  } catch (error) {
+    console.error('❌ Error fetching calendar:', error.response?.data || error.message);
+    return null;
+  }
+}
+
+/**
+ * Updates an appointment's title
+ * @param {string} appointmentId - The appointment/event ID
+ * @param {string} title - New title for the appointment
+ * @param {string} calendarId - The calendar ID (required for the endpoint)
+ * @returns {Promise<Object|null>} Updated appointment data or null on failure
+ */
+async function updateAppointmentTitle(appointmentId, title, calendarId) {
+  if (!appointmentId) {
+    throw new Error('Appointment ID is required');
+  }
+
+  if (!title) {
+    throw new Error('Title is required');
+  }
+
+  try {
+    console.log(`📝 Updating appointment ${appointmentId} title to: "${title}"`);
+
+    const response = await axios.put(
+      `${BASE_URL}/calendars/events/appointments/${appointmentId}`,
+      {
+        title: title,
+        calendarId: calendarId
+      },
+      {
+        headers: getHeaders()
+      }
+    );
+
+    console.log(`✅ Appointment title updated successfully`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error updating appointment:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
+ * Builds the appointment title from components
+ * @param {Object} options - Title components
+ * @param {string} options.calendarName - Calendar name
+ * @param {string} options.meetingType - Meeting type (e.g., "EP Discovery Call")
+ * @param {string} options.meeting - Meeting location/name (e.g., "Naples")
+ * @param {string} options.contactName - Contact's full name
+ * @returns {string} Formatted title
+ */
+function buildAppointmentTitle({ calendarName, meetingType, meeting, contactName }) {
+  const parts = [];
+
+  if (calendarName) parts.push(calendarName);
+  if (meetingType) parts.push(meetingType);
+  if (meeting) parts.push(meeting);
+  if (contactName) parts.push(contactName);
+
+  return parts.join(' - ');
+}
+
+/**
+ * Main handler for appointment created webhook
+ * Fetches form submission, extracts data, and updates appointment title
+ *
+ * @param {Object} webhookData - Webhook payload from GHL
+ * @param {string} webhookData.appointmentId - The appointment ID
+ * @param {string} webhookData.contactId - Contact ID
+ * @param {string} webhookData.contactPhone - Contact phone number
+ * @param {string} webhookData.contactEmail - Contact email
+ * @param {string} webhookData.contactName - Contact full name
+ * @param {string} webhookData.calendarId - Calendar ID (optional)
+ * @param {string} webhookData.calendarName - Calendar name (optional, preferred over calendarId)
+ * @returns {Promise<Object>} Result of the operation
+ */
+async function processAppointmentCreated(webhookData) {
+  const {
+    appointmentId,
+    contactId,
+    contactPhone,
+    contactEmail,
+    contactName,
+    calendarId,
+    calendarName: webhookCalendarName
+  } = webhookData;
+
+  console.log('\n========================================');
+  console.log('📅 Processing Appointment Created Webhook');
+  console.log('========================================');
+  console.log(`Appointment ID: ${appointmentId}`);
+  console.log(`Contact: ${contactName} (${contactId})`);
+  console.log(`Phone: ${contactPhone}`);
+  console.log(`Email: ${contactEmail}`);
+  console.log(`Calendar ID: ${calendarId || '(not provided)'}`);
+  console.log(`Calendar Name: ${webhookCalendarName || '(not provided)'}`);
+  console.log('========================================\n');
+
+  // Validate required fields
+  if (!appointmentId) {
+    throw new Error('Missing required field: appointmentId');
+  }
+
+  const formId = process.env.GHL_APPOINTMENT_FORM_ID;
+  if (!formId) {
+    throw new Error('GHL_APPOINTMENT_FORM_ID not configured in environment variables');
+  }
+
+  let meetingData = null;
+  let calendarName = null;
+
+  // Step 1: Try to fetch form submission
+  // Try phone first, then email
+  const searchQuery = contactPhone || contactEmail;
+
+  if (searchQuery) {
+    const submission = await getFormSubmission(formId, searchQuery);
+
+    if (submission) {
+      meetingData = extractMeetingData(submission);
+      calendarName = meetingData.calendarName;
+      console.log('📋 Extracted meeting data:', meetingData);
+    }
+  }
+
+  // Step 2: If no calendar name from form, use webhook calendarName or fetch from API
+  if (!calendarName) {
+    if (webhookCalendarName) {
+      // Use calendar name provided directly in webhook
+      calendarName = webhookCalendarName;
+      console.log(`📅 Using calendar name from webhook: "${calendarName}"`);
+    } else if (calendarId) {
+      // Fallback: fetch from calendar API
+      console.log('📅 Fetching calendar name from API (fallback)...');
+      const calendar = await getCalendar(calendarId);
+      if (calendar) {
+        calendarName = calendar.name;
+      }
+    }
+  }
+
+  // Step 3: Build the title
+  let title;
+
+  if (meetingData && meetingData.meetingType) {
+    // Full format: Calendar Name - Meeting Type - Meeting - Contact Name
+    title = buildAppointmentTitle({
+      calendarName: calendarName,
+      meetingType: meetingData.meetingType,
+      meeting: meetingData.meeting,
+      contactName: contactName
+    });
+  } else {
+    // Fallback format: Calendar Name - Contact Name
+    title = buildAppointmentTitle({
+      calendarName: calendarName || 'Appointment',
+      contactName: contactName
+    });
+    console.log('⚠️ Using fallback title format (form submission not found or missing data)');
+  }
+
+  console.log(`🏷️ Final title: "${title}"`);
+
+  // Step 4: Update the appointment
+  const result = await updateAppointmentTitle(appointmentId, title, calendarId);
+
+  return {
+    success: true,
+    appointmentId,
+    title,
+    usedFallback: !meetingData || !meetingData.meetingType,
+    meetingData
+  };
+}
+
+module.exports = {
+  getFormSubmission,
+  extractMeetingData,
+  getCalendar,
+  updateAppointmentTitle,
+  buildAppointmentTitle,
+  processAppointmentCreated,
+  FORM_FIELDS
+};

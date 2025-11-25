@@ -9,6 +9,7 @@ const { createGHLContact, createGHLOpportunity } = require('./services/ghlServic
 const { handlePdfUpload } = require('./services/pdfService');
 const { processOpportunityStageChange, processTaskCompletion, checkAppointmentsWithRetry, searchOpportunitiesByContact, updateOpportunityStage, checkOpportunityStageWithRetry } = require('./services/ghlOpportunityService');
 const { processTaskCreation } = require('./services/ghlTaskService');
+const { processAppointmentCreated } = require('./services/appointmentService');
 const { main: createWorkshopEvent } = require('./automations/create-workshop-event');
 const { main: associateContactToWorkshop } = require('./automations/associate-contact-to-workshop');
 
@@ -273,6 +274,86 @@ app.post('/webhooks/ghl/task-completed', async (req, res) => {
 
   } catch (error) {
     console.error('Error processing GHL task completion webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing webhook',
+      error: error.message
+    });
+  }
+});
+
+// GHL Appointment Created webhook endpoint
+// Updates appointment title with: Calendar Name - Meeting Type - Meeting - Contact Name
+app.post('/webhooks/ghl/appointment-created', async (req, res) => {
+  try {
+    console.log('=== GHL APPOINTMENT CREATED WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
+
+    // Extract appointment data from GHL webhook
+    // Handle multiple possible field names for flexibility
+    const webhookData = {
+      appointmentId: req.body.appointment_id ||
+                     req.body.appointmentId ||
+                     req.body['appointment-id'] ||
+                     req.body.id ||
+                     req.body.customData?.appointmentId,
+      contactId: req.body.contact_id ||
+                 req.body.contactId ||
+                 req.body['contact-id'] ||
+                 req.body.customData?.contactId,
+      contactPhone: req.body.contact_phone ||
+                    req.body.contactPhone ||
+                    req.body['contact-phone'] ||
+                    req.body.phone ||
+                    req.body.customData?.contactPhone,
+      contactEmail: req.body.contact_email ||
+                    req.body.contactEmail ||
+                    req.body['contact-email'] ||
+                    req.body.email ||
+                    req.body.customData?.contactEmail,
+      contactName: req.body.contact_name ||
+                   req.body.contactName ||
+                   req.body['contact-name'] ||
+                   req.body.name ||
+                   req.body.customData?.contactName,
+      calendarId: req.body.calendar_id ||
+                  req.body.calendarId ||
+                  req.body['calendar-id'] ||
+                  req.body.customData?.calendarId,
+      calendarName: req.body.calendar_name ||
+                    req.body.calendarName ||
+                    req.body['calendar-name'] ||
+                    req.body.customData?.calendarName
+    };
+
+    console.log('Extracted webhook data:', JSON.stringify(webhookData, null, 2));
+
+    // Validate required fields
+    if (!webhookData.appointmentId) {
+      console.error('❌ Missing appointmentId in webhook payload');
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field: appointmentId',
+        receivedFields: Object.keys(req.body)
+      });
+    }
+
+    // Process the appointment and update title
+    const result = await processAppointmentCreated(webhookData);
+
+    res.json({
+      success: true,
+      message: 'Appointment title updated successfully',
+      appointmentId: result.appointmentId,
+      newTitle: result.title,
+      usedFallback: result.usedFallback,
+      meetingData: result.meetingData
+    });
+
+  } catch (error) {
+    console.error('Error processing GHL appointment webhook:', error);
     res.status(500).json({
       success: false,
       message: 'Error processing webhook',
@@ -723,6 +804,342 @@ app.post('/webhooks/intakeForm', upload.none(), async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error processing webhook',
+      error: error.message
+    });
+  }
+});
+
+// GHL Invoice Created webhook endpoint
+app.post('/webhooks/ghl/invoice-created', async (req, res) => {
+  try {
+    console.log('=== GHL INVOICE CREATED WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
+
+    const confidoService = require('./services/confidoService');
+    const invoiceService = require('./services/invoiceService');
+    const ghlService = require('./services/ghlService');
+
+    // Extract invoice data from GHL webhook
+    // NOTE: Update field names based on actual GHL invoice webhook payload
+    const webhookData = {
+      ghlInvoiceId: req.body.invoice_id || req.body.invoiceId || req.body.id,
+      opportunityId: req.body.opportunity_id || req.body.opportunityId,
+      contactId: req.body.contact_id || req.body.contactId,
+      opportunityName: req.body.opportunity_name || req.body.opportunityName,
+      primaryContactName: req.body.contact_name || req.body.contactName,
+      invoiceNumber: req.body.invoice_number || req.body.invoiceNumber,
+      amountDue: parseFloat(req.body.amount_due || req.body.amountDue || req.body.total || 0),
+      invoiceDate: req.body.invoice_date || req.body.invoiceDate || new Date().toISOString(),
+      dueDate: req.body.due_date || req.body.dueDate,
+      status: req.body.status || 'pending',
+      lineItems: req.body.line_items || req.body.lineItems || [],
+    };
+
+    console.log('Extracted webhook data:', JSON.stringify(webhookData, null, 2));
+
+    // Validate required fields
+    if (!webhookData.ghlInvoiceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field: invoice ID'
+      });
+    }
+
+    if (!webhookData.amountDue || webhookData.amountDue <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing or invalid amount due'
+      });
+    }
+
+    // Get contact details if we have contactId but not contact name
+    if (webhookData.contactId && !webhookData.primaryContactName) {
+      console.log('Fetching contact details from GHL...');
+      try {
+        const contactResponse = await ghlService.getContact(webhookData.contactId);
+        if (contactResponse && contactResponse.contact) {
+          webhookData.primaryContactName = `${contactResponse.contact.firstName || ''} ${contactResponse.contact.lastName || ''}`.trim();
+          console.log('Contact name retrieved:', webhookData.primaryContactName);
+        }
+      } catch (error) {
+        console.warn('Could not fetch contact details:', error.message);
+      }
+    }
+
+    // Save invoice to Supabase first (without Confido ID yet)
+    console.log('Saving invoice to Supabase...');
+    const supabaseResult = await invoiceService.saveInvoiceToSupabase({
+      ghlInvoiceId: webhookData.ghlInvoiceId,
+      opportunityId: webhookData.opportunityId,
+      contactId: webhookData.contactId,
+      opportunityName: webhookData.opportunityName,
+      primaryContactName: webhookData.primaryContactName,
+      invoiceNumber: webhookData.invoiceNumber,
+      amountDue: webhookData.amountDue,
+      amountPaid: 0,
+      status: webhookData.status,
+      invoiceDate: webhookData.invoiceDate,
+      dueDate: webhookData.dueDate,
+    });
+
+    if (!supabaseResult.success) {
+      console.error('Failed to save invoice to Supabase:', supabaseResult.error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to save invoice to database',
+        error: supabaseResult.error
+      });
+    }
+
+    console.log('✅ Invoice saved to Supabase');
+
+    // Create invoice in Confido (3-step flow: Client → Matter → PaymentLink)
+    console.log('Creating invoice in Confido...');
+    const confidoResult = await confidoService.createInvoice({
+      ghlInvoiceId: webhookData.ghlInvoiceId,
+      opportunityId: webhookData.opportunityId,
+      opportunityName: webhookData.opportunityName,
+      contactId: webhookData.contactId,
+      contactName: webhookData.primaryContactName,
+      contactEmail: req.body.contact_email || req.body.email, // Add email if available
+      contactPhone: req.body.contact_phone || req.body.phone, // Add phone if available
+      invoiceNumber: webhookData.invoiceNumber,
+      amountDue: webhookData.amountDue,
+      dueDate: webhookData.dueDate,
+      memo: `Invoice #${webhookData.invoiceNumber || 'N/A'} - ${webhookData.opportunityName || ''}`,
+      lineItems: webhookData.lineItems,
+    });
+
+    if (!confidoResult.success) {
+      console.error('Failed to create invoice in Confido:', confidoResult.error);
+      // Don't fail the request - invoice is saved in Supabase
+      return res.json({
+        success: true,
+        message: 'Invoice saved but Confido creation failed',
+        invoiceId: supabaseResult.data.id,
+        ghlInvoiceId: webhookData.ghlInvoiceId,
+        confidoCreated: false,
+        confidoError: confidoResult.error
+      });
+    }
+
+    console.log('✅ Invoice created in Confido');
+    console.log('   - Client ID:', confidoResult.confidoClientId);
+    console.log('   - Matter ID:', confidoResult.confidoMatterId);
+    console.log('   - PaymentLink ID:', confidoResult.confidoInvoiceId);
+    console.log('   - Status:', confidoResult.status);
+    console.log('   - Total:', confidoResult.total);
+    console.log('   - Payment URL:', confidoResult.paymentUrl);
+
+    // Update Supabase record with all Confido IDs
+    const updateResult = await invoiceService.saveInvoiceToSupabase({
+      ghlInvoiceId: webhookData.ghlInvoiceId,
+      opportunityId: webhookData.opportunityId,
+      contactId: webhookData.contactId,
+      opportunityName: webhookData.opportunityName,
+      primaryContactName: webhookData.primaryContactName,
+      confidoInvoiceId: confidoResult.confidoInvoiceId,
+      confidoClientId: confidoResult.confidoClientId,
+      confidoMatterId: confidoResult.confidoMatterId,
+      invoiceNumber: webhookData.invoiceNumber,
+      amountDue: webhookData.amountDue,
+      amountPaid: confidoResult.paid || 0,
+      status: confidoResult.status || 'unpaid',
+      invoiceDate: webhookData.invoiceDate,
+      dueDate: webhookData.dueDate,
+    });
+
+    console.log('✅ Invoice record updated with Confido ID');
+
+    res.json({
+      success: true,
+      message: 'Invoice created successfully in both systems',
+      invoiceId: supabaseResult.data.id,
+      ghlInvoiceId: webhookData.ghlInvoiceId,
+      confido: {
+        invoiceId: confidoResult.confidoInvoiceId,
+        clientId: confidoResult.confidoClientId,
+        matterId: confidoResult.confidoMatterId,
+        paymentUrl: confidoResult.paymentUrl,
+        status: confidoResult.status,
+        total: confidoResult.total,
+        paid: confidoResult.paid,
+        outstanding: confidoResult.outstanding
+      },
+      amountDue: webhookData.amountDue
+    });
+
+  } catch (error) {
+    console.error('Error processing GHL invoice webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing invoice webhook',
+      error: error.message
+    });
+  }
+});
+
+// Confido Payment Received webhook endpoint
+app.post('/webhooks/confido/payment-received', async (req, res) => {
+  try {
+    console.log('=== CONFIDO PAYMENT WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
+
+    const confidoService = require('./services/confidoService');
+    const invoiceService = require('./services/invoiceService');
+    const ghlService = require('./services/ghlService');
+
+    // Verify webhook signature if provided
+    const signature = req.headers['x-confido-signature'] || req.headers['x-webhook-signature'];
+    if (signature) {
+      const isValid = confidoService.verifyWebhookSignature(req.body, signature);
+      if (!isValid) {
+        console.error('❌ Invalid webhook signature');
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid webhook signature'
+        });
+      }
+      console.log('✅ Webhook signature verified');
+    }
+
+    // Extract payment data from Confido webhook
+    // NOTE: Update field names based on actual Confido webhook payload
+    const paymentData = {
+      confidoPaymentId: req.body.payment_id || req.body.paymentId || req.body.id,
+      confidoInvoiceId: req.body.invoice_id || req.body.invoiceId,
+      amount: parseFloat(req.body.amount || req.body.payment_amount || 0),
+      paymentMethod: req.body.payment_method || req.body.paymentMethod,
+      status: req.body.status || 'completed',
+      transactionDate: req.body.transaction_date || req.body.transactionDate || new Date().toISOString(),
+    };
+
+    console.log('Extracted payment data:', JSON.stringify(paymentData, null, 2));
+
+    // Validate required fields
+    if (!paymentData.confidoPaymentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field: payment ID'
+      });
+    }
+
+    if (!paymentData.confidoInvoiceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field: invoice ID'
+      });
+    }
+
+    if (!paymentData.amount || paymentData.amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing or invalid payment amount'
+      });
+    }
+
+    // Find the invoice in our database by Confido invoice ID
+    console.log('Looking up invoice by Confido ID...');
+    const invoiceResult = await invoiceService.getInvoiceByconfidoId(paymentData.confidoInvoiceId);
+
+    if (!invoiceResult.success || !invoiceResult.data) {
+      console.error('Invoice not found for Confido ID:', paymentData.confidoInvoiceId);
+      return res.status(404).json({
+        success: false,
+        message: 'Invoice not found in database',
+        confidoInvoiceId: paymentData.confidoInvoiceId
+      });
+    }
+
+    const invoice = invoiceResult.data;
+    console.log('✅ Invoice found:', {
+      id: invoice.id,
+      ghlInvoiceId: invoice.ghl_invoice_id,
+      opportunityId: invoice.ghl_opportunity_id,
+      amountDue: invoice.amount_due
+    });
+
+    // Update invoice payment status in Supabase
+    console.log('Updating invoice payment status...');
+    const updateResult = await invoiceService.updateInvoicePaymentStatus(
+      paymentData.confidoInvoiceId,
+      {
+        amount: paymentData.amount,
+        transactionDate: paymentData.transactionDate
+      }
+    );
+
+    if (!updateResult.success) {
+      console.error('Failed to update invoice:', updateResult.error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update invoice status',
+        error: updateResult.error
+      });
+    }
+
+    console.log('✅ Invoice updated to paid status');
+
+    // Save payment transaction record
+    console.log('Saving payment transaction...');
+    const paymentRecord = await invoiceService.savePaymentToSupabase({
+      confidoPaymentId: paymentData.confidoPaymentId,
+      confidoInvoiceId: paymentData.confidoInvoiceId,
+      ghlInvoiceId: invoice.ghl_invoice_id,
+      ghlContactId: invoice.ghl_contact_id,
+      ghlOpportunityId: invoice.ghl_opportunity_id,
+      amount: paymentData.amount,
+      paymentMethod: paymentData.paymentMethod,
+      status: paymentData.status,
+      transactionDate: paymentData.transactionDate,
+      rawWebhookData: req.body, // Store full payload for debugging
+    });
+
+    console.log('✅ Payment transaction saved');
+
+    // Create task/note in GHL to notify about payment
+    if (invoice.ghl_opportunity_id) {
+      console.log('Creating notification task in GHL...');
+      try {
+        const taskTitle = `Payment Received: $${paymentData.amount.toFixed(2)}`;
+        const taskBody = `Payment of $${paymentData.amount.toFixed(2)} was received via ${paymentData.paymentMethod || 'Confido'} on ${new Date(paymentData.transactionDate).toLocaleDateString()}.\n\nConfido Payment ID: ${paymentData.confidoPaymentId}\nInvoice Number: ${invoice.invoice_number || 'N/A'}`;
+
+        // Create task on the opportunity
+        await ghlService.createTask(
+          invoice.ghl_contact_id,
+          taskTitle,
+          taskBody,
+          new Date().toISOString(), // Due today
+          null, // No assigned user
+          invoice.ghl_opportunity_id
+        );
+
+        console.log('✅ Notification task created in GHL');
+      } catch (taskError) {
+        console.error('Failed to create GHL task:', taskError.message);
+        // Don't fail the request - payment is already recorded
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Payment processed successfully',
+      paymentId: paymentRecord.data?.id,
+      confidoPaymentId: paymentData.confidoPaymentId,
+      invoiceId: invoice.id,
+      ghlInvoiceId: invoice.ghl_invoice_id,
+      amount: paymentData.amount,
+      invoiceStatus: 'paid'
+    });
+
+  } catch (error) {
+    console.error('Error processing Confido payment webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing payment webhook',
       error: error.message
     });
   }

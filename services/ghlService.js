@@ -227,4 +227,90 @@ async function getCustomFields() {
   }
 }
 
-module.exports = { createGHLContact, createGHLOpportunity, getCustomFields };
+/**
+ * Gets a contact by ID from GoHighLevel
+ * @param {string} contactId - GHL contact ID
+ * @returns {Promise<Object>} Contact data
+ */
+async function getContact(contactId) {
+  const apiKey = process.env.GHL_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  try {
+    const response = await axios.get(
+      `https://services.leadconnectorhq.com/contacts/${contactId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    console.log('Contact fetched successfully:', contactId);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching contact:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
+ * Creates a task in GoHighLevel
+ * @param {string} contactId - Contact ID to assign task to
+ * @param {string} title - Task title
+ * @param {string} body - Task description/body
+ * @param {string} dueDate - ISO date string for due date
+ * @param {string} assignedTo - User ID to assign task to (optional)
+ * @param {string} opportunityId - Opportunity ID to link task to (optional)
+ * @returns {Promise<Object>} Task creation response
+ */
+async function createTask(contactId, title, body, dueDate, assignedTo = null, opportunityId = null) {
+  const apiKey = process.env.GHL_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  const payload = {
+    contactId: contactId,
+    title: title,
+    body: body,
+    dueDate: dueDate,
+    completed: false
+  };
+
+  // Add optional fields if provided
+  if (assignedTo) {
+    payload.assignedTo = assignedTo;
+  }
+
+  if (opportunityId) {
+    payload.opportunityId = opportunityId;
+  }
+
+  try {
+    const response = await axios.post(
+      'https://services.leadconnectorhq.com/opportunities/tasks',
+      payload,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    console.log('Task created successfully:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating task:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+module.exports = { createGHLContact, createGHLOpportunity, getCustomFields, getContact, createTask };
