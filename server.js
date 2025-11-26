@@ -1178,6 +1178,253 @@ app.post('/webhooks/confido/payment-received', async (req, res) => {
   }
 });
 
+// GHL Association Created webhook endpoint
+app.post('/webhooks/ghl/association-created', async (req, res) => {
+  try {
+    console.log('=== GHL ASSOCIATION CREATED WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
+
+    const ghlService = require('./services/ghlService');
+    const confidoService = require('./services/confidoService');
+    const invoiceService = require('./services/invoiceService');
+
+    // Extract association data from GHL webhook
+    const associationData = {
+      id: req.body.id,
+      associationType: req.body.associationType,
+      firstObjectKey: req.body.firstObjectKey,
+      firstObjectLabel: req.body.firstObjectLabel,
+      secondObjectKey: req.body.secondObjectKey,
+      secondObjectLabel: req.body.secondObjectLabel,
+      key: req.body.key,
+      locationId: req.body.locationId
+    };
+
+    console.log('Association Data:', JSON.stringify(associationData, null, 2));
+
+    // Check if this is an invoice → opportunity association
+    const isInvoiceOpportunityAssociation =
+      (associationData.firstObjectKey === 'custom_objects.invoices' && associationData.secondObjectKey === 'opportunity') ||
+      (associationData.firstObjectKey === 'opportunity' && associationData.secondObjectKey === 'custom_objects.invoices');
+
+    if (!isInvoiceOpportunityAssociation) {
+      console.log('ℹ️ Not an invoice-opportunity association, skipping...');
+      return res.json({
+        success: true,
+        message: 'Association received but not processed (not invoice-opportunity)'
+      });
+    }
+
+    console.log('✅ Invoice-Opportunity association detected');
+    console.log('Association ID:', associationData.id);
+
+    // Note: This webhook only tells us the association schema was created
+    // We need to wait for actual record associations or use a different trigger
+    // For now, just log and acknowledge
+
+    res.json({
+      success: true,
+      message: 'Invoice-Opportunity association webhook received',
+      associationId: associationData.id,
+      associationType: associationData.associationType
+    });
+
+  } catch (error) {
+    console.error('Error processing GHL association webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing association webhook',
+      error: error.message
+    });
+  }
+});
+
+// GHL Custom Object (Invoice) Created webhook endpoint
+app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
+  try {
+    console.log('=== GHL CUSTOM OBJECT CREATED WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
+
+    const axios = require('axios');
+    const ghlService = require('./services/ghlService');
+    const confidoService = require('./services/confidoService');
+    const invoiceService = require('./services/invoiceService');
+
+    // Extract custom object data
+    const objectData = {
+      recordId: req.body.id || req.body.recordId,
+      objectKey: req.body.objectKey || req.body.schemaKey,
+      locationId: req.body.locationId,
+      properties: req.body.properties || {}
+    };
+
+    console.log('Custom Object Data:', JSON.stringify(objectData, null, 2));
+
+    // Check if this is an invoice object
+    if (objectData.objectKey !== 'custom_objects.invoices') {
+      console.log('ℹ️ Not an invoice object, skipping...');
+      return res.json({
+        success: true,
+        message: 'Custom object received but not processed (not invoice)'
+      });
+    }
+
+    console.log('✅ Invoice custom object detected');
+    console.log('Invoice Record ID:', objectData.recordId);
+
+    // Get relations for this invoice record
+    console.log('Fetching relations for invoice...');
+    const relationsResponse = await axios.get(
+      `https://services.leadconnectorhq.com/associations/relations/${objectData.recordId}`,
+      {
+        params: { locationId: objectData.locationId },
+        headers: {
+          'Authorization': `Bearer ${process.env.GHL_API_KEY}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    console.log('Relations Response:', JSON.stringify(relationsResponse.data, null, 2));
+
+    if (!relationsResponse.data.relations || relationsResponse.data.relations.length === 0) {
+      console.log('⚠️ No relations found for this invoice yet');
+      return res.json({
+        success: true,
+        message: 'Invoice received but no opportunity association found yet',
+        invoiceId: objectData.recordId
+      });
+    }
+
+    // Find opportunity relation
+    const opportunityRelation = relationsResponse.data.relations.find(
+      rel => rel.secondObjectKey === 'opportunity' || rel.firstObjectKey === 'opportunity'
+    );
+
+    if (!opportunityRelation) {
+      console.log('⚠️ No opportunity relation found');
+      return res.json({
+        success: true,
+        message: 'Invoice received but no opportunity association found',
+        invoiceId: objectData.recordId
+      });
+    }
+
+    const opportunityId = opportunityRelation.secondObjectKey === 'opportunity'
+      ? opportunityRelation.secondRecordId
+      : opportunityRelation.firstRecordId;
+
+    console.log('✅ Found opportunity:', opportunityId);
+
+    // Get opportunity details
+    console.log('Fetching opportunity details...');
+    const opportunityResponse = await axios.get(
+      `https://services.leadconnectorhq.com/opportunities/${opportunityId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.GHL_API_KEY}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    const opportunity = opportunityResponse.data.opportunity;
+    console.log('Opportunity Details:', JSON.stringify(opportunity, null, 2));
+
+    // Get custom object details
+    console.log('Fetching custom object details...');
+    const objectResponse = await axios.get(
+      `https://services.leadconnectorhq.com/objects/${objectData.objectKey}/records/${objectData.recordId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.GHL_API_KEY}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    const invoiceRecord = objectResponse.data.record;
+    console.log('Invoice Record:', JSON.stringify(invoiceRecord, null, 2));
+
+    // Extract invoice amount from properties (adjust field name as needed)
+    const amountDue = parseFloat(invoiceRecord.properties.amount || invoiceRecord.properties.total || 0);
+
+    // Create invoice in Confido
+    console.log('Creating invoice in Confido...');
+    const confidoResult = await confidoService.createInvoice({
+      ghlInvoiceId: objectData.recordId,
+      opportunityId: opportunity.id,
+      opportunityName: opportunity.name,
+      contactId: opportunity.contactId,
+      contactName: opportunity.contact?.name || '',
+      contactEmail: opportunity.contact?.email || '',
+      contactPhone: opportunity.contact?.phone || '',
+      invoiceNumber: invoiceRecord.properties.invoice_number || objectData.recordId,
+      amountDue: amountDue,
+      dueDate: invoiceRecord.properties.due_date || null,
+      memo: `Custom Invoice - ${opportunity.name}`,
+      lineItems: []
+    });
+
+    if (!confidoResult.success) {
+      console.error('Failed to create invoice in Confido:', confidoResult.error);
+      return res.json({
+        success: true,
+        message: 'Invoice processed but Confido creation failed',
+        invoiceId: objectData.recordId,
+        opportunityId: opportunity.id,
+        confidoError: confidoResult.error
+      });
+    }
+
+    console.log('✅ Invoice created in Confido');
+    console.log('Confido PaymentLink ID:', confidoResult.confidoInvoiceId);
+    console.log('Payment URL:', confidoResult.paymentUrl);
+
+    // Save to Supabase
+    console.log('Saving to Supabase...');
+    await invoiceService.saveInvoiceToSupabase({
+      ghlInvoiceId: objectData.recordId,
+      opportunityId: opportunity.id,
+      contactId: opportunity.contactId,
+      opportunityName: opportunity.name,
+      primaryContactName: opportunity.contact?.name,
+      confidoInvoiceId: confidoResult.confidoInvoiceId,
+      confidoClientId: confidoResult.confidoClientId,
+      confidoMatterId: confidoResult.confidoMatterId,
+      invoiceNumber: invoiceRecord.properties.invoice_number || objectData.recordId,
+      amountDue: amountDue,
+      status: 'unpaid',
+      invoiceDate: new Date().toISOString(),
+      dueDate: invoiceRecord.properties.due_date || null
+    });
+
+    console.log('✅ Invoice saved to Supabase');
+
+    res.json({
+      success: true,
+      message: 'Custom invoice processed successfully',
+      invoiceId: objectData.recordId,
+      opportunityId: opportunity.id,
+      confido: {
+        invoiceId: confidoResult.confidoInvoiceId,
+        paymentUrl: confidoResult.paymentUrl,
+        status: confidoResult.status
+      }
+    });
+
+  } catch (error) {
+    console.error('Error processing custom object webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing custom object webhook',
+      error: error.message
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
