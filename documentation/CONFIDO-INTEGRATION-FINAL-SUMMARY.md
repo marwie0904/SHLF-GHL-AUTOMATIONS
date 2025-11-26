@@ -72,15 +72,20 @@ The system now properly creates:
    ↓
 2. Lookup Invoice in Supabase by confido_invoice_id
    ↓
-3. Update Invoice Status to "paid"
+3. Update Invoice Status to "paid" in Supabase
    ↓
 4. Save Payment Transaction to confido_payments table
    ↓
-5. Create Task in GHL
+5. Record Payment in GHL Invoice (NEW!)
+   - POST /invoices/{invoiceId}/record-payment
+   - Updates invoice status to "paid" in GHL
+   - Includes Confido payment ID as transaction reference
+   ↓
+6. Create Task in GHL
    - "Payment Received: $X"
    - Link to opportunity
    ↓
-6. Return Success
+7. Return Success
 ```
 
 ---
@@ -398,7 +403,8 @@ npm start
 ✅ `.env` - Added Confido credentials
 ✅ `services/confidoService.js` - Complete rewrite for 3-step flow
 ✅ `services/invoiceService.js` - Added client and matter ID fields
-✅ `server.js` - Updated webhook to use new flow
+✅ `services/ghlService.js` - Added recordInvoicePayment() and getInvoice() functions
+✅ `server.js` - Updated webhooks to use new flow with GHL payment recording
 ✅ Supabase migrations - Added confido_client_id and confido_matter_id columns
 
 ---
@@ -414,6 +420,7 @@ The integration is **COMPLETE** and ready for testing!
 - ✅ Tracks status (paid/unpaid) with balance details
 - ✅ Stores all IDs for bi-directional sync
 - ✅ Handles payment webhooks from Confido
+- ✅ Records payments in GHL invoices (updates invoice to "paid")
 - ✅ Creates GHL tasks when payments received
 
 **What you need to do:**

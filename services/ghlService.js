@@ -313,4 +313,96 @@ async function createTask(contactId, title, body, dueDate, assignedTo = null, op
   }
 }
 
-module.exports = { createGHLContact, createGHLOpportunity, getCustomFields, getContact, createTask };
+/**
+ * Records a manual payment for an invoice in GoHighLevel
+ * @param {string} invoiceId - GHL invoice ID
+ * @param {Object} paymentData - Payment information
+ * @param {number} paymentData.amount - Payment amount in dollars
+ * @param {string} paymentData.paymentMethod - Payment method (e.g., 'credit_card', 'ach', 'cash')
+ * @param {string} paymentData.transactionId - External transaction ID (Confido payment ID)
+ * @param {string} paymentData.note - Payment note/memo
+ * @returns {Promise<Object>} Payment record response
+ */
+async function recordInvoicePayment(invoiceId, paymentData) {
+  const apiKey = process.env.GHL_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  try {
+    console.log('=== Recording Payment in GHL Invoice ===');
+    console.log('Invoice ID:', invoiceId);
+    console.log('Payment Data:', JSON.stringify(paymentData, null, 2));
+
+    const payload = {
+      amount: paymentData.amount, // Amount in dollars
+      paymentMode: paymentData.paymentMethod || 'other',
+      transactionId: paymentData.transactionId || null,
+      note: paymentData.note || 'Payment processed via Confido Legal'
+    };
+
+    const response = await axios.post(
+      `https://services.leadconnectorhq.com/invoices/${invoiceId}/record-payment`,
+      payload,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    console.log('✅ Payment recorded in GHL invoice successfully');
+    console.log('Response:', JSON.stringify(response.data, null, 2));
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error recording payment in GHL invoice:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
+ * Gets invoice details from GoHighLevel
+ * @param {string} invoiceId - GHL invoice ID
+ * @returns {Promise<Object>} Invoice data
+ */
+async function getInvoice(invoiceId) {
+  const apiKey = process.env.GHL_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  try {
+    console.log('=== Fetching Invoice from GHL ===');
+    console.log('Invoice ID:', invoiceId);
+
+    const response = await axios.get(
+      `https://services.leadconnectorhq.com/invoices/${invoiceId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    console.log('✅ Invoice fetched successfully from GHL');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error fetching invoice from GHL:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+module.exports = {
+  createGHLContact,
+  createGHLOpportunity,
+  getCustomFields,
+  getContact,
+  createTask,
+  recordInvoicePayment,
+  getInvoice
+};

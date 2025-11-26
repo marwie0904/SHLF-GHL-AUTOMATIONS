@@ -1109,6 +1109,24 @@ app.post('/webhooks/confido/payment-received', async (req, res) => {
 
     console.log('✅ Payment transaction saved');
 
+    // Record payment in GHL invoice
+    if (invoice.ghl_invoice_id) {
+      console.log('Recording payment in GHL invoice...');
+      try {
+        await ghlService.recordInvoicePayment(invoice.ghl_invoice_id, {
+          amount: paymentData.amount,
+          paymentMethod: paymentData.paymentMethod || 'other',
+          transactionId: paymentData.confidoPaymentId,
+          note: `Payment processed via Confido Legal on ${new Date(paymentData.transactionDate).toLocaleDateString()}`
+        });
+
+        console.log('✅ Payment recorded in GHL invoice');
+      } catch (ghlError) {
+        console.error('Failed to record payment in GHL invoice:', ghlError.message);
+        // Don't fail the request - payment is already recorded in Supabase
+      }
+    }
+
     // Create task/note in GHL to notify about payment
     if (invoice.ghl_opportunity_id) {
       console.log('Creating notification task in GHL...');
