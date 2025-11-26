@@ -830,19 +830,25 @@ app.post('/webhooks/ghl/invoice-created', async (req, res) => {
     const ghlService = require('./services/ghlService');
 
     // Extract invoice data from GHL webhook
-    // NOTE: Update field names based on actual GHL invoice webhook payload
+    // GHL sends invoice nested in invoice._data
+    const invoice = req.body.invoice?._data || req.body.invoice || req.body;
+    const contactDetails = invoice.contactDetails || {};
+    const opportunityDetails = invoice.opportunityDetails || {};
+
     const webhookData = {
-      ghlInvoiceId: req.body.invoice_id || req.body.invoiceId || req.body.id,
-      opportunityId: req.body.opportunity_id || req.body.opportunityId,
-      contactId: req.body.contact_id || req.body.contactId,
-      opportunityName: req.body.opportunity_name || req.body.opportunityName,
-      primaryContactName: req.body.contact_name || req.body.contactName,
-      invoiceNumber: req.body.invoice_number || req.body.invoiceNumber,
-      amountDue: parseFloat(req.body.amount_due || req.body.amountDue || req.body.total || 0),
-      invoiceDate: req.body.invoice_date || req.body.invoiceDate || new Date().toISOString(),
-      dueDate: req.body.due_date || req.body.dueDate,
-      status: req.body.status || 'pending',
-      lineItems: req.body.line_items || req.body.lineItems || [],
+      ghlInvoiceId: invoice._id || invoice.id || req.body.invoice?._id,
+      opportunityId: opportunityDetails.opportunityId || req.body.opportunity_id,
+      contactId: contactDetails.id || req.body.contact_id,
+      opportunityName: opportunityDetails.opportunityName || req.body.opportunity_name,
+      primaryContactName: contactDetails.name || req.body.full_name || `${req.body.first_name || ''} ${req.body.last_name || ''}`.trim(),
+      contactEmail: contactDetails.email || req.body.email,
+      contactPhone: contactDetails.phoneNo || req.body.phone,
+      invoiceNumber: invoice.invoiceNumber || invoice.invoice_number,
+      amountDue: parseFloat(invoice.amountDue || invoice.total || 0),
+      invoiceDate: invoice.issueDate || invoice.createdAt || new Date().toISOString(),
+      dueDate: invoice.dueDate || invoice.due_date,
+      status: invoice.status || 'pending',
+      lineItems: invoice.invoiceItems || invoice.line_items || [],
     };
 
     console.log('Extracted webhook data:', JSON.stringify(webhookData, null, 2));
@@ -911,8 +917,8 @@ app.post('/webhooks/ghl/invoice-created', async (req, res) => {
       opportunityName: webhookData.opportunityName,
       contactId: webhookData.contactId,
       contactName: webhookData.primaryContactName,
-      contactEmail: req.body.contact_email || req.body.email, // Add email if available
-      contactPhone: req.body.contact_phone || req.body.phone, // Add phone if available
+      contactEmail: webhookData.contactEmail,
+      contactPhone: webhookData.contactPhone,
       invoiceNumber: webhookData.invoiceNumber,
       amountDue: webhookData.amountDue,
       dueDate: webhookData.dueDate,
