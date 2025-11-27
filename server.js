@@ -1389,6 +1389,39 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
     });
 
     if (!confidoResult.success) {
+      // Check if this is a duplicate PaymentLink error
+      if (confidoResult.error === 'DUPLICATE_PAYMENTLINK') {
+        console.log('⚠️ PaymentLink already exists in Confido');
+        console.log('Checking Supabase for existing invoice record...');
+
+        // Get existing invoice from Supabase
+        const existingInvoice = await invoiceService.getInvoiceByGHLId(objectData.recordId);
+
+        if (existingInvoice.success && existingInvoice.data) {
+          console.log('✅ Found existing invoice in Supabase');
+          console.log('Payment URL:', existingInvoice.data.payment_url);
+
+          // Use the existing invoice data instead
+          return res.json({
+            success: true,
+            message: 'Invoice already exists (duplicate webhook)',
+            invoiceId: objectData.recordId,
+            opportunityId: opportunity.id,
+            paymentUrl: existingInvoice.data.payment_url,
+            isDuplicate: true
+          });
+        } else {
+          console.error('⚠️ PaymentLink exists in Confido but not in Supabase');
+          return res.json({
+            success: false,
+            message: 'Data inconsistency - PaymentLink exists in Confido but not in Supabase',
+            invoiceId: objectData.recordId,
+            confidoError: confidoResult.error
+          });
+        }
+      }
+
+      // Other errors
       console.error('Failed to create invoice in Confido:', confidoResult.error);
       return res.json({
         success: true,

@@ -288,60 +288,10 @@ async function createInvoice(invoiceData) {
     const matterId = matterResult.matterId;
     console.log('✅ Matter ready:', matterId, matterResult.isNew ? '(new)' : '(existing)');
 
-    // STEP 3: Check if PaymentLink already exists with this externalId
-    console.log('\n📋 STEP 3: Check for Existing PaymentLink');
-    console.log('Checking if PaymentLink already exists with externalId:', invoiceData.ghlInvoiceId);
-
-    const checkQuery = `
-      query GetPaymentLinks($clientId: ID!, $externalId: String) {
-        paymentLinks(clientId: $clientId, externalId: $externalId) {
-          id
-          externalId
-          url
-          status
-          balance {
-            totalOutstanding
-            totalPaid
-          }
-        }
-      }
-    `;
-
-    try {
-      const existingCheck = await executeGraphQL(checkQuery, {
-        clientId: clientId,
-        externalId: invoiceData.ghlInvoiceId
-      });
-
-      if (existingCheck.paymentLinks && existingCheck.paymentLinks.length > 0) {
-        const existing = existingCheck.paymentLinks[0];
-        console.log('⚠️ PaymentLink already exists:', existing.id);
-        console.log('Returning existing PaymentLink instead of creating duplicate');
-
-        const balance = existing.balance;
-        const total = balance.totalOutstanding + balance.totalPaid;
-        const status = balance.totalOutstanding === 0 ? 'paid' : 'unpaid';
-
-        return {
-          success: true,
-          confidoInvoiceId: existing.id,
-          confidoClientId: clientId,
-          confidoMatterId: matterId,
-          paymentUrl: existing.url,
-          status: status,
-          total: total / 100,
-          paid: balance.totalPaid / 100,
-          outstanding: balance.totalOutstanding / 100,
-          alreadyExists: true
-        };
-      }
-    } catch (checkError) {
-      console.log('Could not check for existing PaymentLink:', checkError.message);
-      console.log('Proceeding with creation...');
-    }
-
-    // STEP 4: Prepare amount (simplified - use operating account)
-    console.log('\n📋 STEP 4: PaymentLink (Invoice)');
+    // STEP 3: Prepare amount (simplified - use operating account)
+    // Note: We can't efficiently query for existing PaymentLinks by externalId in Confido API
+    // Instead, we'll handle duplicate errors gracefully during creation
+    console.log('\n📋 STEP 3: PaymentLink (Invoice)');
     // Confido uses two types of accounts: operating (regular) and trust (client funds)
     // For invoices, we'll use operating account
     const totalInCents = Math.round(invoiceData.amountDue * 100); // Convert to cents
@@ -392,7 +342,30 @@ async function createInvoice(invoiceData) {
       }
     };
 
-    const result = await executeGraphQL(mutation, variables);
+    let result;
+    try {
+      result = await executeGraphQL(mutation, variables);
+    } catch (createError) {
+      // Check if this is a duplicate entry error
+      if (createError.message && createError.message.includes('ER_DUP_ENTRY') && createError.message.includes(invoiceData.ghlInvoiceId)) {
+        console.log('⚠️ PaymentLink with this externalId already exists in Confido');
+        console.log('This likely means a webhook was triggered multiple times for the same invoice');
+        console.log('Returning error so caller can check Supabase for existing record');
+
+        // Return a special error response indicating duplicate
+        return {
+          success: false,
+          error: 'DUPLICATE_PAYMENTLINK',
+          message: 'PaymentLink already exists in Confido - check Supabase for existing record',
+          ghlInvoiceId: invoiceData.ghlInvoiceId,
+          confidoClientId: clientId,
+          confidoMatterId: matterId
+        };
+      }
+
+      // If it's not a duplicate error, re-throw
+      throw createError;
+    }
 
     console.log('✅ PaymentLink created in Confido successfully');
     console.log('Confido PaymentLink ID:', result.addPaymentLink.id);
