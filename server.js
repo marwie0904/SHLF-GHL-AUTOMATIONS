@@ -1273,10 +1273,66 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
     console.log('✅ Invoice custom object detected');
     console.log('Invoice Record ID:', objectData.recordId);
 
-    // Get custom object details to extract service items
-    const customObjectResponse = await ghlService.getCustomObject(objectData.objectKey, objectData.recordId);
-    const invoiceRecord = customObjectResponse.record;
-    console.log('Invoice Record:', JSON.stringify(invoiceRecord, null, 2));
+    // Retry logic: Wait and check for complete data (up to 6 attempts)
+    let invoiceRecord = null;
+    let relationsResponse = null;
+    let attemptCount = 0;
+    const maxAttempts = 6;
+    const delayMs = 10000; // 10 seconds
+
+    while (attemptCount < maxAttempts) {
+      attemptCount++;
+      console.log(`\n⏳ Attempt ${attemptCount}/${maxAttempts} - Checking invoice data...`);
+
+      if (attemptCount > 1) {
+        console.log(`Waiting ${delayMs / 1000} seconds before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+
+      // Get custom object details
+      const customObjectResponse = await ghlService.getCustomObject(objectData.objectKey, objectData.recordId);
+      invoiceRecord = customObjectResponse.record;
+      console.log('Invoice Record:', JSON.stringify(invoiceRecord, null, 2));
+
+      // Check if service items exist
+      const serviceItems = invoiceRecord.properties.serviceproduct || [];
+      const hasServiceItems = serviceItems.length > 0;
+      console.log('Has Service Items:', hasServiceItems, serviceItems);
+
+      // Get relations
+      relationsResponse = await ghlService.getRelations(objectData.recordId, objectData.locationId);
+      const hasRelations = relationsResponse.relations && relationsResponse.relations.length > 0;
+      console.log('Has Relations:', hasRelations);
+
+      // Find opportunity relation
+      const opportunityRelation = hasRelations
+        ? relationsResponse.relations.find(rel => rel.secondObjectKey === 'opportunity' || rel.firstObjectKey === 'opportunity')
+        : null;
+      const hasOpportunity = !!opportunityRelation;
+      console.log('Has Opportunity:', hasOpportunity);
+
+      // Check if data is complete
+      if (hasServiceItems && hasOpportunity) {
+        console.log(`✅ Complete data found on attempt ${attemptCount}`);
+        break;
+      }
+
+      console.log(`⚠️ Incomplete data on attempt ${attemptCount}:`);
+      if (!hasServiceItems) console.log('  - Missing service items');
+      if (!hasOpportunity) console.log('  - Missing opportunity association');
+
+      if (attemptCount === maxAttempts) {
+        console.log('❌ Max attempts reached - data still incomplete');
+        return res.json({
+          success: false,
+          message: 'Invoice data incomplete after 6 attempts',
+          invoiceId: objectData.recordId,
+          hasServiceItems: hasServiceItems,
+          hasOpportunity: hasOpportunity,
+          attempts: attemptCount
+        });
+      }
+    }
 
     // Extract service items from properties
     const serviceItems = invoiceRecord.properties.serviceproduct || [];
@@ -1299,31 +1355,10 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
       console.warn('Missing service items:', missingItems.join(', '));
     }
 
-    // Get relations for this invoice record
-    const relationsResponse = await ghlService.getRelations(objectData.recordId, objectData.locationId);
-
-    if (!relationsResponse.relations || relationsResponse.relations.length === 0) {
-      console.log('⚠️ No relations found for this invoice yet');
-      return res.json({
-        success: true,
-        message: 'Invoice received but no opportunity association found yet',
-        invoiceId: objectData.recordId
-      });
-    }
-
-    // Find opportunity relation
+    // Find opportunity relation (we already verified it exists)
     const opportunityRelation = relationsResponse.relations.find(
       rel => rel.secondObjectKey === 'opportunity' || rel.firstObjectKey === 'opportunity'
     );
-
-    if (!opportunityRelation) {
-      console.log('⚠️ No opportunity relation found');
-      return res.json({
-        success: true,
-        message: 'Invoice received but no opportunity association found',
-        invoiceId: objectData.recordId
-      });
-    }
 
     const opportunityId = opportunityRelation.secondObjectKey === 'opportunity'
       ? opportunityRelation.secondRecordId
