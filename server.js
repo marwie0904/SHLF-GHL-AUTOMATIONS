@@ -1469,9 +1469,7 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
     // Calculate subtotal (same as total for now, can be adjusted if taxes/fees added later)
     const subtotal = total;
 
-    // Update GHL custom object with payment link and invoice number
-    // Note: subtotal/total fields are MONETORY type which requires special currency format
-    // For now we update text fields only. To update MONETORY fields, change them to TEXT type in GHL.
+    // Update GHL custom object with payment link, invoice number, subtotal, and total
     try {
       console.log('Updating GHL custom object with payment link and invoice details...');
 
@@ -1483,18 +1481,19 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
         console.log('✅ Custom object verified, proceeding with update');
         // Use short field names and pass properties as an object
         // locationId is required as query parameter for PUT requests
+        // MONETORY fields require format: { value: number, currency: 'default' }
         await ghlService.updateCustomObject(
           objectData.objectKey,
           objectData.recordId,
           objectData.locationId,
           {
             payment_link: confidoResult.paymentUrl,
-            invoice_number: invoiceNumber
-            // Note: subtotal and total are MONETORY type fields which require special currency format
-            // If you need to update these, change them to TEXT type in GHL custom object schema
+            invoice_number: invoiceNumber,
+            subtotal: { value: subtotal, currency: 'default' },
+            total: { value: total, currency: 'default' }
           }
         );
-        console.log('✅ GHL custom object updated with payment link and invoice number');
+        console.log('✅ GHL custom object updated with payment link, invoice number, subtotal, and total');
       } else {
         console.warn('⚠️ Custom object no longer exists in GHL, skipping update');
       }
