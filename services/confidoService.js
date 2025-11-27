@@ -66,9 +66,10 @@ async function findOrCreateClient(clientData) {
     console.log('Client Data:', JSON.stringify(clientData, null, 2));
 
     // First, try to find existing client by externalId (GHL contact ID)
+    // Use filter parameter to search efficiently
     const query = `
-      query GetClients {
-        clientsList {
+      query GetClients($filter: ClientsFilter) {
+        clientsList(filter: $filter) {
           clients {
             id
             clientName
@@ -80,12 +81,41 @@ async function findOrCreateClient(clientData) {
       }
     `;
 
-    const data = await executeGraphQL(query);
+    const searchVariables = {
+      filter: {
+        externalId: clientData.externalId
+      }
+    };
 
-    // Check if client exists by externalId
-    const existingClient = data.clientsList?.clients?.find(
-      client => client.externalId === clientData.externalId
-    );
+    let existingClient = null;
+
+    try {
+      const data = await executeGraphQL(query, searchVariables);
+      // Check if client exists by externalId
+      existingClient = data.clientsList?.clients?.find(
+        client => client.externalId === clientData.externalId
+      );
+    } catch (searchError) {
+      // If filter not supported, fall back to fetching all and filtering
+      console.log('Filter not supported, falling back to full list search...');
+      const fallbackQuery = `
+        query GetClients {
+          clientsList {
+            clients {
+              id
+              clientName
+              email
+              phone
+              externalId
+            }
+          }
+        }
+      `;
+      const data = await executeGraphQL(fallbackQuery);
+      existingClient = data.clientsList?.clients?.find(
+        client => client.externalId === clientData.externalId
+      );
+    }
 
     if (existingClient) {
       console.log('✅ Found existing client:', existingClient.id);
@@ -121,7 +151,44 @@ async function findOrCreateClient(clientData) {
       }
     };
 
-    const result = await executeGraphQL(mutation, variables);
+    let result;
+    try {
+      result = await executeGraphQL(mutation, variables);
+    } catch (createError) {
+      // Check if this is a duplicate error
+      if (createError.message && (createError.message.includes('ER_DUP_ENTRY') || createError.message.includes('duplicate'))) {
+        console.log('⚠️ Duplicate client detected during creation, searching again...');
+        // Search again to get the existing client
+        const fallbackQuery = `
+          query GetClients {
+            clientsList {
+              clients {
+                id
+                clientName
+                email
+                phone
+                externalId
+              }
+            }
+          }
+        `;
+        const data = await executeGraphQL(fallbackQuery);
+        const foundClient = data.clientsList?.clients?.find(
+          client => client.externalId === clientData.externalId
+        );
+
+        if (foundClient) {
+          console.log('✅ Found existing client after duplicate error:', foundClient.id);
+          return {
+            success: true,
+            clientId: foundClient.id,
+            isNew: false,
+            data: foundClient
+          };
+        }
+      }
+      throw createError;
+    }
 
     console.log('✅ Client created successfully:', result.addClient.id);
 
@@ -213,7 +280,31 @@ async function findOrCreateMatter(matterData) {
       }
     };
 
-    const result = await executeGraphQL(mutation, createVariables);
+    let result;
+    try {
+      result = await executeGraphQL(mutation, createVariables);
+    } catch (createError) {
+      // Check if this is a duplicate error
+      if (createError.message && (createError.message.includes('ER_DUP_ENTRY') || createError.message.includes('duplicate'))) {
+        console.log('⚠️ Duplicate matter detected during creation, searching again...');
+        // Search again to get the existing matter
+        const retryData = await executeGraphQL(query, variables);
+        const foundMatter = retryData.client?.matters?.edges?.find(
+          edge => edge.node.externalId === matterData.externalId
+        )?.node;
+
+        if (foundMatter) {
+          console.log('✅ Found existing matter after duplicate error:', foundMatter.id);
+          return {
+            success: true,
+            matterId: foundMatter.id,
+            isNew: false,
+            data: foundMatter
+          };
+        }
+      }
+      throw createError;
+    }
 
     console.log('✅ Matter created successfully:', result.addMatter.id);
 
