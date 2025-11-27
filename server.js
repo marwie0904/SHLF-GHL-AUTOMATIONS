@@ -1247,7 +1247,6 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
     console.log('Timestamp:', new Date().toISOString());
     console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
 
-    const axios = require('axios');
     const ghlService = require('./services/ghlService');
     const confidoService = require('./services/confidoService');
     const invoiceService = require('./services/invoiceService');
@@ -1257,7 +1256,7 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
       recordId: req.body.id || req.body.recordId,
       objectKey: req.body.objectKey || req.body.schemaKey,
       locationId: req.body.locationId,
-      properties: req.body.properties || {}
+      type: req.body.type || 'RecordCreate'
     };
 
     console.log('Custom Object Data:', JSON.stringify(objectData, null, 2));
@@ -1274,22 +1273,36 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
     console.log('✅ Invoice custom object detected');
     console.log('Invoice Record ID:', objectData.recordId);
 
+    // Get custom object details to extract service items
+    const customObjectResponse = await ghlService.getCustomObject(objectData.objectKey, objectData.recordId);
+    const invoiceRecord = customObjectResponse.record;
+    console.log('Invoice Record:', JSON.stringify(invoiceRecord, null, 2));
+
+    // Extract service items from properties
+    const serviceItems = invoiceRecord.properties.serviceproduct || [];
+    console.log('Service Items:', serviceItems);
+
+    // Calculate total from service items
+    const calculationResult = await invoiceService.calculateInvoiceTotal(serviceItems);
+    if (!calculationResult.success) {
+      console.error('Failed to calculate invoice total:', calculationResult.error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to calculate invoice total',
+        error: calculationResult.error
+      });
+    }
+
+    const { total, lineItems, missingItems } = calculationResult;
+    console.log(`Calculated Total: $${total}`);
+    if (missingItems.length > 0) {
+      console.warn('Missing service items:', missingItems.join(', '));
+    }
+
     // Get relations for this invoice record
-    console.log('Fetching relations for invoice...');
-    const relationsResponse = await axios.get(
-      `https://services.leadconnectorhq.com/associations/relations/${objectData.recordId}`,
-      {
-        params: { locationId: objectData.locationId },
-        headers: {
-          'Authorization': `Bearer ${process.env.GHL_API_KEY}`,
-          'Version': '2021-07-28'
-        }
-      }
-    );
+    const relationsResponse = await ghlService.getRelations(objectData.recordId, objectData.locationId);
 
-    console.log('Relations Response:', JSON.stringify(relationsResponse.data, null, 2));
-
-    if (!relationsResponse.data.relations || relationsResponse.data.relations.length === 0) {
+    if (!relationsResponse.relations || relationsResponse.relations.length === 0) {
       console.log('⚠️ No relations found for this invoice yet');
       return res.json({
         success: true,
@@ -1299,7 +1312,7 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
     }
 
     // Find opportunity relation
-    const opportunityRelation = relationsResponse.data.relations.find(
+    const opportunityRelation = relationsResponse.relations.find(
       rel => rel.secondObjectKey === 'opportunity' || rel.firstObjectKey === 'opportunity'
     );
 
@@ -1319,37 +1332,9 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
     console.log('✅ Found opportunity:', opportunityId);
 
     // Get opportunity details
-    console.log('Fetching opportunity details...');
-    const opportunityResponse = await axios.get(
-      `https://services.leadconnectorhq.com/opportunities/${opportunityId}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.GHL_API_KEY}`,
-          'Version': '2021-07-28'
-        }
-      }
-    );
-
-    const opportunity = opportunityResponse.data.opportunity;
+    const opportunityResponse = await ghlService.getOpportunity(opportunityId);
+    const opportunity = opportunityResponse.opportunity;
     console.log('Opportunity Details:', JSON.stringify(opportunity, null, 2));
-
-    // Get custom object details
-    console.log('Fetching custom object details...');
-    const objectResponse = await axios.get(
-      `https://services.leadconnectorhq.com/objects/${objectData.objectKey}/records/${objectData.recordId}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.GHL_API_KEY}`,
-          'Version': '2021-07-28'
-        }
-      }
-    );
-
-    const invoiceRecord = objectResponse.data.record;
-    console.log('Invoice Record:', JSON.stringify(invoiceRecord, null, 2));
-
-    // Extract invoice amount from properties (adjust field name as needed)
-    const amountDue = parseFloat(invoiceRecord.properties.amount || invoiceRecord.properties.total || 0);
 
     // Create invoice in Confido
     console.log('Creating invoice in Confido...');
@@ -1361,11 +1346,11 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
       contactName: opportunity.contact?.name || '',
       contactEmail: opportunity.contact?.email || '',
       contactPhone: opportunity.contact?.phone || '',
-      invoiceNumber: invoiceRecord.properties.invoice_number || objectData.recordId,
-      amountDue: amountDue,
+      invoiceNumber: invoiceRecord.properties.invoice || objectData.recordId,
+      amountDue: total,
       dueDate: invoiceRecord.properties.due_date || null,
-      memo: `Custom Invoice - ${opportunity.name}`,
-      lineItems: []
+      memo: `Invoice for ${lineItems.map(item => item.name).join(', ')}`,
+      lineItems: lineItems
     });
 
     if (!confidoResult.success) {
@@ -1394,8 +1379,10 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
       confidoInvoiceId: confidoResult.confidoInvoiceId,
       confidoClientId: confidoResult.confidoClientId,
       confidoMatterId: confidoResult.confidoMatterId,
-      invoiceNumber: invoiceRecord.properties.invoice_number || objectData.recordId,
-      amountDue: amountDue,
+      paymentUrl: confidoResult.paymentUrl,
+      serviceItems: lineItems,
+      invoiceNumber: invoiceRecord.properties.invoice || objectData.recordId,
+      amountDue: total,
       status: 'unpaid',
       invoiceDate: new Date().toISOString(),
       dueDate: invoiceRecord.properties.due_date || null
@@ -1403,11 +1390,27 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
 
     console.log('✅ Invoice saved to Supabase');
 
+    // Update GHL custom object with payment URL and total
+    try {
+      console.log('Updating GHL custom object with payment URL...');
+      await ghlService.updateCustomObject(objectData.objectKey, objectData.recordId, [
+        { key: 'payment_url', valueString: confidoResult.paymentUrl },
+        { key: 'total_amount', valueNumber: total },
+        { key: 'status', valueString: 'active' }
+      ]);
+      console.log('✅ GHL custom object updated with payment URL');
+    } catch (updateError) {
+      console.error('Failed to update GHL custom object (non-blocking):', updateError.message);
+    }
+
     res.json({
       success: true,
       message: 'Custom invoice processed successfully',
       invoiceId: objectData.recordId,
       opportunityId: opportunity.id,
+      total: total,
+      lineItems: lineItems,
+      missingItems: missingItems,
       confido: {
         invoiceId: confidoResult.confidoInvoiceId,
         paymentUrl: confidoResult.paymentUrl,
@@ -1420,6 +1423,180 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error processing custom object webhook',
+      error: error.message
+    });
+  }
+});
+
+// GHL Custom Object (Invoice) Updated webhook endpoint
+app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
+  try {
+    console.log('=== GHL CUSTOM OBJECT UPDATED WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
+
+    const ghlService = require('./services/ghlService');
+    const invoiceService = require('./services/invoiceService');
+
+    // Extract custom object data
+    const objectData = {
+      recordId: req.body.id || req.body.recordId,
+      objectKey: req.body.objectKey || req.body.schemaKey,
+      locationId: req.body.locationId
+    };
+
+    console.log('Custom Object Data:', JSON.stringify(objectData, null, 2));
+
+    // Check if this is an invoice object
+    if (objectData.objectKey !== 'custom_objects.invoices') {
+      console.log('ℹ️ Not an invoice object, skipping...');
+      return res.json({
+        success: true,
+        message: 'Custom object received but not processed (not invoice)'
+      });
+    }
+
+    console.log('✅ Invoice update detected');
+    console.log('Invoice Record ID:', objectData.recordId);
+
+    // Get existing invoice from Supabase
+    const existingInvoice = await invoiceService.getInvoiceByGHLId(objectData.recordId);
+
+    if (!existingInvoice.success || !existingInvoice.data) {
+      console.log('⚠️ Invoice not found in Supabase, treating as new creation');
+      // Redirect to create flow
+      return res.redirect(307, '/webhooks/ghl/custom-object-created');
+    }
+
+    // Get updated custom object details
+    const customObjectResponse = await ghlService.getCustomObject(objectData.objectKey, objectData.recordId);
+    const invoiceRecord = customObjectResponse.record;
+    console.log('Updated Invoice Record:', JSON.stringify(invoiceRecord, null, 2));
+
+    // Extract and recalculate from service items
+    const serviceItems = invoiceRecord.properties.serviceproduct || [];
+    const calculationResult = await invoiceService.calculateInvoiceTotal(serviceItems);
+
+    if (!calculationResult.success) {
+      console.error('Failed to calculate invoice total:', calculationResult.error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to calculate invoice total',
+        error: calculationResult.error
+      });
+    }
+
+    const { total, lineItems, missingItems } = calculationResult;
+    console.log(`Recalculated Total: $${total}`);
+    console.log(`Previous Total: $${existingInvoice.data.amount_due}`);
+
+    // Update invoice in Supabase
+    await invoiceService.updateInvoiceInSupabase(objectData.recordId, {
+      amount_due: total,
+      service_items: lineItems,
+      invoice_number: invoiceRecord.properties.invoice || objectData.recordId,
+      due_date: invoiceRecord.properties.due_date || null
+    });
+
+    console.log('✅ Invoice updated in Supabase');
+
+    // Update GHL custom object with new total
+    try {
+      await ghlService.updateCustomObject(objectData.objectKey, objectData.recordId, [
+        { key: 'total_amount', valueNumber: total }
+      ]);
+      console.log('✅ GHL custom object updated with new total');
+    } catch (updateError) {
+      console.error('Failed to update GHL custom object (non-blocking):', updateError.message);
+    }
+
+    // Note: Confido PaymentLink may need to be voided/recreated if amount changed
+    // This depends on Confido API capabilities - for now just log the change
+    if (total !== parseFloat(existingInvoice.data.amount_due)) {
+      console.warn('⚠️ Invoice amount changed - Confido PaymentLink may need manual adjustment');
+      console.warn(`Old: $${existingInvoice.data.amount_due}, New: $${total}`);
+    }
+
+    res.json({
+      success: true,
+      message: 'Invoice updated successfully',
+      invoiceId: objectData.recordId,
+      previousTotal: existingInvoice.data.amount_due,
+      newTotal: total,
+      lineItems: lineItems,
+      missingItems: missingItems
+    });
+
+  } catch (error) {
+    console.error('Error processing custom object update webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing custom object update webhook',
+      error: error.message
+    });
+  }
+});
+
+// GHL Custom Object (Invoice) Deleted webhook endpoint
+app.post('/webhooks/ghl/custom-object-deleted', async (req, res) => {
+  try {
+    console.log('=== GHL CUSTOM OBJECT DELETED WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
+
+    const invoiceService = require('./services/invoiceService');
+
+    // Extract custom object data
+    const objectData = {
+      recordId: req.body.id || req.body.recordId,
+      objectKey: req.body.objectKey || req.body.schemaKey,
+      locationId: req.body.locationId
+    };
+
+    console.log('Custom Object Data:', JSON.stringify(objectData, null, 2));
+
+    // Check if this is an invoice object
+    if (objectData.objectKey !== 'custom_objects.invoices') {
+      console.log('ℹ️ Not an invoice object, skipping...');
+      return res.json({
+        success: true,
+        message: 'Custom object received but not processed (not invoice)'
+      });
+    }
+
+    console.log('✅ Invoice deletion detected');
+    console.log('Invoice Record ID:', objectData.recordId);
+
+    // Get existing invoice from Supabase
+    const existingInvoice = await invoiceService.getInvoiceByGHLId(objectData.recordId);
+
+    if (!existingInvoice.success || !existingInvoice.data) {
+      console.log('⚠️ Invoice not found in Supabase');
+      return res.json({
+        success: true,
+        message: 'Invoice not found (already deleted or never created)'
+      });
+    }
+
+    // Update status to cancelled (don't actually delete for audit trail)
+    await invoiceService.updateInvoiceInSupabase(objectData.recordId, {
+      status: 'cancelled'
+    });
+
+    console.log('✅ Invoice marked as cancelled in Supabase');
+
+    res.json({
+      success: true,
+      message: 'Invoice deleted/cancelled successfully',
+      invoiceId: objectData.recordId,
+      confidoInvoiceId: existingInvoice.data.confido_invoice_id
+    });
+
+  } catch (error) {
+    console.error('Error processing custom object delete webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing custom object delete webhook',
       error: error.message
     });
   }

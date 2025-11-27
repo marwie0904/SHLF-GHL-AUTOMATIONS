@@ -29,6 +29,8 @@ async function saveInvoiceToSupabase(invoiceData) {
       confido_invoice_id: invoiceData.confidoInvoiceId || null,
       confido_client_id: invoiceData.confidoClientId || null,
       confido_matter_id: invoiceData.confidoMatterId || null,
+      payment_url: invoiceData.paymentUrl || null,
+      service_items: invoiceData.serviceItems || null,
       invoice_number: invoiceData.invoiceNumber,
       amount_due: invoiceData.amountDue,
       amount_paid: invoiceData.amountPaid || 0,
@@ -306,6 +308,177 @@ async function getInvoicesByOpportunity(opportunityId) {
   }
 }
 
+/**
+ * Calculate invoice total from service items
+ * @param {Array<string>} serviceItemNames - Array of service item names
+ * @returns {Promise<Object>} Total amount and line items
+ */
+async function calculateInvoiceTotal(serviceItemNames) {
+  try {
+    console.log('=== Calculating Invoice Total ===');
+    console.log('Service Items:', serviceItemNames);
+
+    if (!serviceItemNames || serviceItemNames.length === 0) {
+      return {
+        success: true,
+        total: 0,
+        lineItems: [],
+        missingItems: []
+      };
+    }
+
+    // Fetch service items from catalog
+    const { data, error } = await supabase
+      .from('invoice_service_items')
+      .select('service_name, price, description')
+      .in('service_name', serviceItemNames)
+      .eq('is_active', true);
+
+    if (error) {
+      console.error('❌ Error fetching service items:', error);
+      throw error;
+    }
+
+    let total = 0;
+    const lineItems = [];
+    const missingItems = [];
+
+    // Calculate total and build line items
+    for (const serviceName of serviceItemNames) {
+      const item = data.find(d => d.service_name === serviceName);
+
+      if (item) {
+        const price = parseFloat(item.price);
+        total += price;
+        lineItems.push({
+          name: serviceName,
+          description: item.description || serviceName,
+          price: price,
+          quantity: 1
+        });
+        console.log(`✅ Found: ${serviceName} - $${price}`);
+      } else {
+        console.warn(`⚠️ Service item not found in catalog: ${serviceName}`);
+        missingItems.push(serviceName);
+      }
+    }
+
+    console.log(`Total: $${total.toFixed(2)}`);
+    console.log(`Line Items: ${lineItems.length}`);
+    if (missingItems.length > 0) {
+      console.warn(`Missing Items: ${missingItems.join(', ')}`);
+    }
+
+    return {
+      success: true,
+      total,
+      lineItems,
+      missingItems
+    };
+
+  } catch (error) {
+    console.error('❌ Error in calculateInvoiceTotal:', error.message);
+    return {
+      success: false,
+      error: error.message,
+      total: 0,
+      lineItems: [],
+      missingItems: []
+    };
+  }
+}
+
+/**
+ * Get service items from catalog
+ * @param {Array<string>} serviceNames - Array of service names to fetch
+ * @returns {Promise<Object>} Service items data
+ */
+async function getServiceItems(serviceNames) {
+  try {
+    console.log('=== Fetching Service Items ===');
+    console.log('Service Names:', serviceNames);
+
+    const { data, error } = await supabase
+      .from('invoice_service_items')
+      .select('*')
+      .in('service_name', serviceNames)
+      .eq('is_active', true);
+
+    if (error) {
+      console.error('❌ Error fetching service items:', error);
+      throw error;
+    }
+
+    console.log(`✅ Found ${data.length} service items`);
+
+    return {
+      success: true,
+      data
+    };
+
+  } catch (error) {
+    console.error('❌ Error in getServiceItems:', error.message);
+    return {
+      success: false,
+      error: error.message,
+      data: []
+    };
+  }
+}
+
+/**
+ * Update invoice in Supabase by GHL invoice ID
+ * @param {string} ghlInvoiceId - GHL invoice ID
+ * @param {Object} updates - Fields to update
+ * @returns {Promise<Object>} Updated invoice record
+ */
+async function updateInvoiceInSupabase(ghlInvoiceId, updates) {
+  try {
+    console.log('=== Updating Invoice in Supabase ===');
+    console.log('GHL Invoice ID:', ghlInvoiceId);
+    console.log('Updates:', JSON.stringify(updates, null, 2));
+
+    const updateData = {
+      ...updates,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .update(updateData)
+      .eq('ghl_invoice_id', ghlInvoiceId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Error updating invoice:', error);
+      throw error;
+    }
+
+    if (!data) {
+      console.warn('⚠️ No invoice found with GHL Invoice ID:', ghlInvoiceId);
+      return {
+        success: false,
+        error: 'Invoice not found'
+      };
+    }
+
+    console.log('✅ Invoice updated successfully');
+
+    return {
+      success: true,
+      data
+    };
+
+  } catch (error) {
+    console.error('❌ Error in updateInvoiceInSupabase:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
 module.exports = {
   saveInvoiceToSupabase,
   updateInvoicePaymentStatus,
@@ -313,4 +486,7 @@ module.exports = {
   getInvoiceByconfidoId,
   savePaymentToSupabase,
   getInvoicesByOpportunity,
+  calculateInvoiceTotal,
+  getServiceItems,
+  updateInvoiceInSupabase,
 };

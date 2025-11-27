@@ -397,6 +397,154 @@ async function getInvoice(invoiceId) {
   }
 }
 
+/**
+ * Gets custom object details from GoHighLevel
+ * @param {string} objectKey - Custom object schema key (e.g., "custom_objects.invoices")
+ * @param {string} recordId - Custom object record ID
+ * @returns {Promise<Object>} Custom object data
+ */
+async function getCustomObject(objectKey, recordId) {
+  const apiKey = process.env.GHL_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  try {
+    console.log('=== Fetching Custom Object from GHL ===');
+    console.log('Object Key:', objectKey);
+    console.log('Record ID:', recordId);
+
+    const response = await axios.get(
+      `https://services.leadconnectorhq.com/objects/${objectKey}/records/${recordId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    console.log('✅ Custom object fetched successfully from GHL');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error fetching custom object from GHL:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
+ * Updates custom object properties in GoHighLevel
+ * @param {string} objectKey - Custom object schema key
+ * @param {string} recordId - Custom object record ID
+ * @param {Array} properties - Array of property updates [{key, value...}]
+ * @returns {Promise<Object>} Update response
+ */
+async function updateCustomObject(objectKey, recordId, properties) {
+  const apiKey = process.env.GHL_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  try {
+    console.log('=== Updating Custom Object in GHL ===');
+    console.log('Object Key:', objectKey);
+    console.log('Record ID:', recordId);
+    console.log('Properties:', JSON.stringify(properties, null, 2));
+
+    const response = await axios.put(
+      `https://services.leadconnectorhq.com/objects/${objectKey}/records/${recordId}`,
+      { properties },
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    console.log('✅ Custom object updated successfully in GHL');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error updating custom object in GHL:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
+ * Gets relations/associations for a custom object record
+ * @param {string} recordId - Custom object record ID
+ * @param {string} locationId - GHL location ID
+ * @returns {Promise<Object>} Relations data
+ */
+async function getRelations(recordId, locationId) {
+  const apiKey = process.env.GHL_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  try {
+    console.log('=== Fetching Relations from GHL ===');
+    console.log('Record ID:', recordId);
+    console.log('Location ID:', locationId);
+
+    const response = await axios.get(
+      `https://services.leadconnectorhq.com/associations/relations/${recordId}`,
+      {
+        params: { locationId },
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    console.log('✅ Relations fetched successfully from GHL');
+    console.log(`Found ${response.data.relations?.length || 0} relations`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error fetching relations from GHL:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
+ * Gets opportunity details including contact information
+ * @param {string} opportunityId - GHL opportunity ID
+ * @returns {Promise<Object>} Opportunity data with contact details
+ */
+async function getOpportunity(opportunityId) {
+  const apiKey = process.env.GHL_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  try {
+    console.log('=== Fetching Opportunity from GHL ===');
+    console.log('Opportunity ID:', opportunityId);
+
+    const response = await axios.get(
+      `https://services.leadconnectorhq.com/opportunities/${opportunityId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    console.log('✅ Opportunity fetched successfully from GHL');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error fetching opportunity from GHL:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
 module.exports = {
   createGHLContact,
   createGHLOpportunity,
@@ -404,5 +552,9 @@ module.exports = {
   getContact,
   createTask,
   recordInvoicePayment,
-  getInvoice
+  getInvoice,
+  getCustomObject,
+  updateCustomObject,
+  getRelations,
+  getOpportunity
 };
