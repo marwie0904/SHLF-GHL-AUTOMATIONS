@@ -1802,6 +1802,7 @@ app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
 });
 
 // GHL Custom Object (Invoice) Deleted webhook endpoint
+// Deletes PaymentLink from Confido and marks invoice as deleted in Supabase
 app.post('/webhooks/ghl/custom-object-deleted', async (req, res) => {
   try {
     console.log('=== GHL CUSTOM OBJECT DELETED WEBHOOK RECEIVED ===');
@@ -1809,6 +1810,7 @@ app.post('/webhooks/ghl/custom-object-deleted', async (req, res) => {
     console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
 
     const invoiceService = require('./services/invoiceService');
+    const confidoService = require('./services/confidoService');
 
     // Extract custom object data
     const objectData = {
@@ -1844,18 +1846,40 @@ app.post('/webhooks/ghl/custom-object-deleted', async (req, res) => {
       });
     }
 
-    // Update status to cancelled (don't actually delete for audit trail)
+    const confidoInvoiceId = existingInvoice.data.confido_invoice_id;
+
+    // Delete PaymentLink from Confido if it exists
+    let confidoDeleteResult = null;
+    if (confidoInvoiceId) {
+      console.log('Deleting PaymentLink from Confido...');
+      console.log('Confido PaymentLink ID:', confidoInvoiceId);
+
+      confidoDeleteResult = await confidoService.deletePaymentLink(confidoInvoiceId);
+
+      if (confidoDeleteResult.success) {
+        console.log('✅ PaymentLink deleted from Confido');
+      } else {
+        console.error('⚠️ Failed to delete PaymentLink from Confido:', confidoDeleteResult.error);
+        // Continue anyway - still mark as deleted in Supabase
+      }
+    } else {
+      console.log('ℹ️ No Confido PaymentLink ID found - skipping Confido deletion');
+    }
+
+    // Update status to deleted in Supabase (keep record for audit trail)
     await invoiceService.updateInvoiceInSupabase(objectData.recordId, {
-      status: 'cancelled'
+      status: 'deleted'
     });
 
-    console.log('✅ Invoice marked as cancelled in Supabase');
+    console.log('✅ Invoice marked as deleted in Supabase');
 
     res.json({
       success: true,
-      message: 'Invoice deleted/cancelled successfully',
+      message: 'Invoice deleted successfully',
       invoiceId: objectData.recordId,
-      confidoInvoiceId: existingInvoice.data.confido_invoice_id
+      confidoInvoiceId: confidoInvoiceId,
+      confidoDeleted: confidoDeleteResult?.success || false,
+      confidoError: confidoDeleteResult?.error || null
     });
 
   } catch (error) {

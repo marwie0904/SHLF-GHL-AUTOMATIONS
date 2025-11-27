@@ -489,6 +489,45 @@ async function getInvoice(paymentLinkId) {
 }
 
 /**
+ * Delete a payment link (invoice) from Confido
+ * @param {string} paymentLinkId - Confido payment link ID
+ * @returns {Promise<Object>} Deletion result
+ */
+async function deletePaymentLink(paymentLinkId) {
+  try {
+    console.log('=== Deleting PaymentLink from Confido ===');
+    console.log('PaymentLink ID:', paymentLinkId);
+
+    const mutation = `
+      mutation RemovePaymentLink($id: ID!) {
+        removePaymentLink(id: $id) {
+          id
+        }
+      }
+    `;
+
+    const variables = { id: paymentLinkId };
+    const result = await executeGraphQL(mutation, variables);
+
+    console.log('✅ PaymentLink deleted successfully from Confido');
+    console.log('Deleted ID:', result.removePaymentLink?.id);
+
+    return {
+      success: true,
+      deletedId: result.removePaymentLink?.id
+    };
+
+  } catch (error) {
+    console.error('❌ Error deleting PaymentLink from Confido:', error.message);
+
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
  * Verify webhook signature from Confido
  * Note: Confido webhook signature verification logic would go here if they provide it
  * @param {Object} payload - Webhook payload
@@ -552,6 +591,7 @@ async function testConnection() {
 module.exports = {
   createInvoice,
   getInvoice,
+  deletePaymentLink,
   findOrCreateClient,
   findOrCreateMatter,
   verifyWebhookSignature,
