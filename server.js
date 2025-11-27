@@ -1273,7 +1273,8 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
     console.log('✅ Invoice custom object detected');
     console.log('Invoice Record ID:', objectData.recordId);
 
-    // Retry logic: Wait and check for complete data (up to 6 attempts)
+    // Retry logic: Wait and check for opportunity association (up to 6 attempts)
+    // Note: We only wait for the association - fields will come via RecordUpdate webhook
     let invoiceRecord = null;
     let relationsResponse = null;
     let attemptCount = 0;
@@ -1282,7 +1283,7 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
 
     while (attemptCount < maxAttempts) {
       attemptCount++;
-      console.log(`\n⏳ Attempt ${attemptCount}/${maxAttempts} - Checking invoice data...`);
+      console.log(`\n⏳ Attempt ${attemptCount}/${maxAttempts} - Checking for opportunity association...`);
 
       if (attemptCount > 1) {
         console.log(`Waiting ${delayMs / 1000} seconds before retry...`);
@@ -1293,11 +1294,6 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
       const customObjectResponse = await ghlService.getCustomObject(objectData.objectKey, objectData.recordId);
       invoiceRecord = customObjectResponse.record;
       console.log('Invoice Record:', JSON.stringify(invoiceRecord, null, 2));
-
-      // Check if service items exist
-      const serviceItems = invoiceRecord.properties.serviceproduct || [];
-      const hasServiceItems = serviceItems.length > 0;
-      console.log('Has Service Items:', hasServiceItems, serviceItems);
 
       // Get relations
       relationsResponse = await ghlService.getRelations(objectData.recordId, objectData.locationId);
@@ -1311,23 +1307,20 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
       const hasOpportunity = !!opportunityRelation;
       console.log('Has Opportunity:', hasOpportunity);
 
-      // Check if data is complete
-      if (hasServiceItems && hasOpportunity) {
-        console.log(`✅ Complete data found on attempt ${attemptCount}`);
+      // Check if we have the opportunity association
+      if (hasOpportunity) {
+        console.log(`✅ Opportunity association found on attempt ${attemptCount}`);
         break;
       }
 
-      console.log(`⚠️ Incomplete data on attempt ${attemptCount}:`);
-      if (!hasServiceItems) console.log('  - Missing service items');
-      if (!hasOpportunity) console.log('  - Missing opportunity association');
+      console.log(`⚠️ Missing opportunity association on attempt ${attemptCount}`);
 
       if (attemptCount === maxAttempts) {
-        console.log('❌ Max attempts reached - data still incomplete');
+        console.log('❌ Max attempts reached - no opportunity association found');
         return res.json({
           success: false,
-          message: 'Invoice data incomplete after 6 attempts',
+          message: 'Invoice missing opportunity association after 6 attempts',
           invoiceId: objectData.recordId,
-          hasServiceItems: hasServiceItems,
           hasOpportunity: hasOpportunity,
           attempts: attemptCount
         });
@@ -1532,6 +1525,8 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
 });
 
 // GHL Custom Object (Invoice) Updated webhook endpoint
+// This fires when fields are added/updated on the invoice
+// Logic: Update Supabase, then create in Confido if no payment_link exists, otherwise update payment_link
 app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
   try {
     console.log('=== GHL CUSTOM OBJECT UPDATED WEBHOOK RECEIVED ===');
@@ -1539,6 +1534,7 @@ app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
     console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
 
     const ghlService = require('./services/ghlService');
+    const confidoService = require('./services/confidoService');
     const invoiceService = require('./services/invoiceService');
 
     // Extract custom object data
@@ -1562,51 +1558,30 @@ app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
     console.log('✅ Invoice update detected');
     console.log('Invoice Record ID:', objectData.recordId);
 
-    // Get existing invoice from Supabase
-    const existingInvoice = await invoiceService.getInvoiceByGHLId(objectData.recordId);
-
-    if (!existingInvoice.success || !existingInvoice.data) {
-      console.log('⚠️ Invoice not found in Supabase, treating as new creation');
-      console.log('Triggering create flow instead...');
-
-      // Change the event type to RecordCreate and process as new invoice
-      const modifiedBody = {
-        ...req.body,
-        type: 'RecordCreate'
-      };
-
-      // Make internal HTTP request to create endpoint
-      const axios = require('axios');
-      try {
-        const createResponse = await axios.post(
-          'http://localhost:' + (process.env.PORT || 3000) + '/webhooks/ghl/custom-object-created',
-          modifiedBody,
-          {
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-
-        console.log('✅ Invoice created via internal request');
-        return res.json(createResponse.data);
-      } catch (createError) {
-        console.error('Failed to create invoice from update webhook:', createError.message);
-        return res.status(500).json({
-          success: false,
-          message: 'Failed to create invoice from update webhook',
-          error: createError.message
-        });
-      }
-    }
-
-    // Get updated custom object details
+    // Get updated custom object details from GHL
     const customObjectResponse = await ghlService.getCustomObject(objectData.objectKey, objectData.recordId);
     const invoiceRecord = customObjectResponse.record;
     console.log('Updated Invoice Record:', JSON.stringify(invoiceRecord, null, 2));
 
-    // Extract and recalculate from service items
+    // Check if payment_link already exists on this invoice
+    const existingPaymentLink = invoiceRecord.properties.payment_link || null;
+    console.log('Existing Payment Link:', existingPaymentLink);
+
+    // Extract and calculate from service items
     const serviceItems = invoiceRecord.properties.serviceproduct || [];
+    console.log('Service Items:', serviceItems);
+
+    // If no service items, just acknowledge the webhook
+    if (serviceItems.length === 0) {
+      console.log('ℹ️ No service items yet, waiting for more updates...');
+      return res.json({
+        success: true,
+        message: 'Invoice update received, waiting for service items',
+        invoiceId: objectData.recordId,
+        hasPaymentLink: !!existingPaymentLink
+      });
+    }
+
     const calculationResult = await invoiceService.calculateInvoiceTotal(serviceItems);
 
     if (!calculationResult.success) {
@@ -1619,49 +1594,202 @@ app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
     }
 
     const { total, lineItems, missingItems } = calculationResult;
-    console.log(`Recalculated Total: $${total}`);
-    console.log(`Previous Total: $${existingInvoice.data.amount_due}`);
+    console.log(`Calculated Total: $${total}`);
 
-    // Update invoice in Supabase
-    await invoiceService.updateInvoiceInSupabase(objectData.recordId, {
-      amount_due: total,
-      service_items: lineItems,
-      invoice_number: invoiceRecord.properties.invoice || objectData.recordId,
-      due_date: invoiceRecord.properties.due_date || null
-    });
+    // Get relations to find the associated opportunity
+    const relationsResponse = await ghlService.getRelations(objectData.recordId, objectData.locationId);
+    const hasRelations = relationsResponse.relations && relationsResponse.relations.length > 0;
 
-    console.log('✅ Invoice updated in Supabase');
+    const opportunityRelation = hasRelations
+      ? relationsResponse.relations.find(rel => rel.secondObjectKey === 'opportunity' || rel.firstObjectKey === 'opportunity')
+      : null;
 
-    // Calculate subtotal (same as total for now)
-    const subtotal = total;
-
-    // Update GHL custom object with new totals
-    try {
-      await ghlService.updateCustomObject(objectData.objectKey, objectData.recordId, [
-        { key: 'subtotal', valueNumber: subtotal },
-        { key: 'total', valueNumber: total }
-      ]);
-      console.log('✅ GHL custom object updated with new totals');
-    } catch (updateError) {
-      console.error('Failed to update GHL custom object (non-blocking):', updateError.message);
+    if (!opportunityRelation) {
+      console.log('⚠️ No opportunity association yet, waiting for association...');
+      return res.json({
+        success: true,
+        message: 'Invoice update received, waiting for opportunity association',
+        invoiceId: objectData.recordId,
+        hasPaymentLink: !!existingPaymentLink
+      });
     }
 
-    // Note: Confido PaymentLink may need to be voided/recreated if amount changed
-    // This depends on Confido API capabilities - for now just log the change
-    if (total !== parseFloat(existingInvoice.data.amount_due)) {
-      console.warn('⚠️ Invoice amount changed - Confido PaymentLink may need manual adjustment');
-      console.warn(`Old: $${existingInvoice.data.amount_due}, New: $${total}`);
-    }
+    const opportunityId = opportunityRelation.secondObjectKey === 'opportunity'
+      ? opportunityRelation.secondRecordId
+      : opportunityRelation.firstRecordId;
 
-    res.json({
-      success: true,
-      message: 'Invoice updated successfully',
-      invoiceId: objectData.recordId,
-      previousTotal: existingInvoice.data.amount_due,
-      newTotal: total,
-      lineItems: lineItems,
-      missingItems: missingItems
-    });
+    console.log('Found Opportunity ID:', opportunityId);
+
+    // Get opportunity details
+    const opportunityResponse = await ghlService.getOpportunity(opportunityId);
+    const opportunity = opportunityResponse.opportunity;
+    console.log('Opportunity Details:', JSON.stringify(opportunity, null, 2));
+
+    // Get existing invoice from Supabase (if any)
+    const existingInvoice = await invoiceService.getInvoiceByGHLId(objectData.recordId);
+    const hasExistingRecord = existingInvoice.success && existingInvoice.data;
+
+    // Check if payment link exists
+    if (!existingPaymentLink) {
+      // NO PAYMENT LINK - Create in Confido
+      console.log('📝 No payment link exists - Creating invoice in Confido...');
+
+      const confidoResult = await confidoService.createInvoice({
+        ghlInvoiceId: objectData.recordId,
+        opportunityId: opportunity.id,
+        opportunityName: opportunity.name,
+        contactId: opportunity.contactId,
+        contactName: opportunity.contact?.name || '',
+        contactEmail: opportunity.contact?.email || '',
+        contactPhone: opportunity.contact?.phone || '',
+        invoiceNumber: invoiceRecord.properties.invoice || objectData.recordId,
+        amountDue: total,
+        dueDate: invoiceRecord.properties.due_date || null,
+        memo: `Invoice for ${lineItems.map(item => item.name).join(', ')}`,
+        lineItems: lineItems
+      });
+
+      if (!confidoResult.success) {
+        // Check if this is a duplicate PaymentLink error
+        if (confidoResult.error === 'DUPLICATE_PAYMENTLINK') {
+          console.log('⚠️ PaymentLink already exists in Confido');
+
+          if (hasExistingRecord && existingInvoice.data.payment_url) {
+            console.log('✅ Found existing invoice in Supabase with payment URL');
+            return res.json({
+              success: true,
+              message: 'Invoice already exists (duplicate)',
+              invoiceId: objectData.recordId,
+              paymentUrl: existingInvoice.data.payment_url,
+              isDuplicate: true
+            });
+          }
+        }
+
+        console.error('Failed to create invoice in Confido:', confidoResult.error);
+        return res.json({
+          success: false,
+          message: 'Failed to create invoice in Confido',
+          invoiceId: objectData.recordId,
+          confidoError: confidoResult.error
+        });
+      }
+
+      console.log('✅ Invoice created in Confido');
+      console.log('Confido PaymentLink ID:', confidoResult.confidoInvoiceId);
+      console.log('Payment URL:', confidoResult.paymentUrl);
+
+      // Generate invoice number
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+      const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const invoiceNumber = `INV-${dateStr}-${randomStr}`;
+      console.log('Generated Invoice Number:', invoiceNumber);
+
+      // Save/Update Supabase
+      console.log('Saving to Supabase...');
+      await invoiceService.saveInvoiceToSupabase({
+        ghlInvoiceId: objectData.recordId,
+        opportunityId: opportunity.id,
+        contactId: opportunity.contactId,
+        opportunityName: opportunity.name,
+        primaryContactName: opportunity.contact?.name,
+        confidoInvoiceId: confidoResult.confidoInvoiceId,
+        confidoClientId: confidoResult.confidoClientId,
+        confidoMatterId: confidoResult.confidoMatterId,
+        paymentUrl: confidoResult.paymentUrl,
+        serviceItems: lineItems,
+        invoiceNumber: invoiceNumber,
+        amountDue: total,
+        status: 'unpaid',
+        invoiceDate: new Date().toISOString(),
+        dueDate: invoiceRecord.properties.due_date || null
+      });
+      console.log('✅ Invoice saved to Supabase');
+
+      // Update GHL custom object with payment link, invoice number, subtotal, and total
+      const subtotal = total;
+      try {
+        console.log('Updating GHL custom object with payment link and invoice details...');
+        await ghlService.updateCustomObject(
+          objectData.objectKey,
+          objectData.recordId,
+          objectData.locationId,
+          {
+            payment_link: confidoResult.paymentUrl,
+            invoice_number: invoiceNumber,
+            subtotal: { value: subtotal, currency: 'default' },
+            total: { value: total, currency: 'default' }
+          }
+        );
+        console.log('✅ GHL custom object updated with payment link, invoice number, subtotal, and total');
+      } catch (updateError) {
+        console.error('Failed to update GHL custom object (non-blocking):', updateError.message);
+      }
+
+      return res.json({
+        success: true,
+        message: 'Invoice created in Confido and saved to Supabase',
+        invoiceId: objectData.recordId,
+        opportunityId: opportunity.id,
+        total: total,
+        lineItems: lineItems,
+        confido: {
+          invoiceId: confidoResult.confidoInvoiceId,
+          paymentUrl: confidoResult.paymentUrl,
+          status: confidoResult.status
+        }
+      });
+
+    } else {
+      // PAYMENT LINK EXISTS - Update Supabase record
+      console.log('📝 Payment link exists - Updating Supabase record...');
+
+      // Update Supabase with new values
+      await invoiceService.updateInvoiceInSupabase(objectData.recordId, {
+        amount_due: total,
+        service_items: lineItems,
+        invoice_number: invoiceRecord.properties.invoice || objectData.recordId,
+        due_date: invoiceRecord.properties.due_date || null
+      });
+      console.log('✅ Invoice updated in Supabase');
+
+      // Update GHL custom object with new totals
+      const subtotal = total;
+      try {
+        console.log('Updating GHL custom object with new totals...');
+        await ghlService.updateCustomObject(
+          objectData.objectKey,
+          objectData.recordId,
+          objectData.locationId,
+          {
+            subtotal: { value: subtotal, currency: 'default' },
+            total: { value: total, currency: 'default' }
+          }
+        );
+        console.log('✅ GHL custom object updated with new totals');
+      } catch (updateError) {
+        console.error('Failed to update GHL custom object (non-blocking):', updateError.message);
+      }
+
+      // Note: Confido PaymentLink amount cannot be changed after creation
+      // Log warning if amount changed
+      if (hasExistingRecord && total !== parseFloat(existingInvoice.data.amount_due)) {
+        console.warn('⚠️ Invoice amount changed - Confido PaymentLink may need manual adjustment');
+        console.warn(`Old: $${existingInvoice.data.amount_due}, New: $${total}`);
+      }
+
+      return res.json({
+        success: true,
+        message: 'Invoice updated in Supabase',
+        invoiceId: objectData.recordId,
+        opportunityId: opportunity.id,
+        total: total,
+        lineItems: lineItems,
+        existingPaymentLink: existingPaymentLink,
+        missingItems: missingItems
+      });
+    }
 
   } catch (error) {
     console.error('Error processing custom object update webhook:', error);
