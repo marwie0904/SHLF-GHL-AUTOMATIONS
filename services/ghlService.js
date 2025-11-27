@@ -435,26 +435,34 @@ async function getCustomObject(objectKey, recordId) {
 
 /**
  * Updates custom object properties in GoHighLevel
- * @param {string} objectKey - Custom object schema key
+ * @param {string} objectKey - Custom object schema key (e.g., 'custom_objects.invoices')
  * @param {string} recordId - Custom object record ID
- * @param {Array} properties - Array of property updates [{key, value...}]
+ * @param {string} locationId - GHL location ID (required for PUT requests)
+ * @param {Object} properties - Object of property updates { fieldName: value }
+ *                              Use short field names (e.g., 'payment_link' not 'custom_objects.invoices.payment_link')
  * @returns {Promise<Object>} Update response
  */
-async function updateCustomObject(objectKey, recordId, properties) {
+async function updateCustomObject(objectKey, recordId, locationId, properties) {
   const apiKey = process.env.GHL_API_KEY;
 
   if (!apiKey) {
     throw new Error('GHL_API_KEY not configured in environment variables');
   }
 
+  if (!locationId) {
+    throw new Error('locationId is required for updating custom objects');
+  }
+
   try {
     console.log('=== Updating Custom Object in GHL ===');
     console.log('Object Key:', objectKey);
     console.log('Record ID:', recordId);
+    console.log('Location ID:', locationId);
     console.log('Properties:', JSON.stringify(properties, null, 2));
 
+    // locationId must be passed as query parameter for PUT requests
     const response = await axios.put(
-      `https://services.leadconnectorhq.com/objects/${objectKey}/records/${recordId}`,
+      `https://services.leadconnectorhq.com/objects/${objectKey}/records/${recordId}?locationId=${locationId}`,
       { properties },
       {
         headers: {
