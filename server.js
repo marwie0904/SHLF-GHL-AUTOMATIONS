@@ -1511,8 +1511,37 @@ app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
 
     if (!existingInvoice.success || !existingInvoice.data) {
       console.log('⚠️ Invoice not found in Supabase, treating as new creation');
-      // Redirect to create flow
-      return res.redirect(307, '/webhooks/ghl/custom-object-created');
+      console.log('Triggering create flow instead...');
+
+      // Change the event type to RecordCreate and process as new invoice
+      const modifiedBody = {
+        ...req.body,
+        type: 'RecordCreate'
+      };
+
+      // Make internal HTTP request to create endpoint
+      const axios = require('axios');
+      try {
+        const createResponse = await axios.post(
+          'http://localhost:' + (process.env.PORT || 3000) + '/webhooks/ghl/custom-object-created',
+          modifiedBody,
+          {
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        console.log('✅ Invoice created via internal request');
+        return res.json(createResponse.data);
+      } catch (createError) {
+        console.error('Failed to create invoice from update webhook:', createError.message);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to create invoice from update webhook',
+          error: createError.message
+        });
+      }
     }
 
     // Get updated custom object details
@@ -1622,10 +1651,12 @@ app.post('/webhooks/ghl/custom-object-deleted', async (req, res) => {
     const existingInvoice = await invoiceService.getInvoiceByGHLId(objectData.recordId);
 
     if (!existingInvoice.success || !existingInvoice.data) {
-      console.log('⚠️ Invoice not found in Supabase');
+      console.log('ℹ️ Invoice not found in Supabase - already deleted or never created');
+      console.log('Nothing to do, returning success');
       return res.json({
         success: true,
-        message: 'Invoice not found (already deleted or never created)'
+        message: 'Invoice not found (already deleted or never created) - no action needed',
+        invoiceId: objectData.recordId
       });
     }
 
