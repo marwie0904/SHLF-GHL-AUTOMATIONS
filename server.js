@@ -1368,6 +1368,14 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
     console.log('Confido PaymentLink ID:', confidoResult.confidoInvoiceId);
     console.log('Payment URL:', confidoResult.paymentUrl);
 
+    // Generate invoice number (INV-YYYYMMDD-XXXX format)
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const invoiceNumber = `INV-${dateStr}-${randomStr}`;
+
+    console.log('Generated Invoice Number:', invoiceNumber);
+
     // Save to Supabase
     console.log('Saving to Supabase...');
     await invoiceService.saveInvoiceToSupabase({
@@ -1381,7 +1389,7 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
       confidoMatterId: confidoResult.confidoMatterId,
       paymentUrl: confidoResult.paymentUrl,
       serviceItems: lineItems,
-      invoiceNumber: invoiceRecord.properties.invoice || objectData.recordId,
+      invoiceNumber: invoiceNumber,
       amountDue: total,
       status: 'unpaid',
       invoiceDate: new Date().toISOString(),
@@ -1390,15 +1398,19 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
 
     console.log('✅ Invoice saved to Supabase');
 
-    // Update GHL custom object with payment URL and total
+    // Calculate subtotal (same as total for now, can be adjusted if taxes/fees added later)
+    const subtotal = total;
+
+    // Update GHL custom object with payment link, invoice number, subtotal, and total
     try {
-      console.log('Updating GHL custom object with payment URL...');
+      console.log('Updating GHL custom object with payment link and invoice details...');
       await ghlService.updateCustomObject(objectData.objectKey, objectData.recordId, [
-        { key: 'payment_url', valueString: confidoResult.paymentUrl },
-        { key: 'total_amount', valueNumber: total },
-        { key: 'status', valueString: 'active' }
+        { key: 'payment_link', valueString: confidoResult.paymentUrl },
+        { key: 'invoice_number', valueString: invoiceNumber },
+        { key: 'subtotal', valueNumber: subtotal },
+        { key: 'total', valueNumber: total }
       ]);
-      console.log('✅ GHL custom object updated with payment URL');
+      console.log('✅ GHL custom object updated with payment link and invoice details');
     } catch (updateError) {
       console.error('Failed to update GHL custom object (non-blocking):', updateError.message);
     }
@@ -1500,12 +1512,16 @@ app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
 
     console.log('✅ Invoice updated in Supabase');
 
-    // Update GHL custom object with new total
+    // Calculate subtotal (same as total for now)
+    const subtotal = total;
+
+    // Update GHL custom object with new totals
     try {
       await ghlService.updateCustomObject(objectData.objectKey, objectData.recordId, [
-        { key: 'total_amount', valueNumber: total }
+        { key: 'subtotal', valueNumber: subtotal },
+        { key: 'total', valueNumber: total }
       ]);
-      console.log('✅ GHL custom object updated with new total');
+      console.log('✅ GHL custom object updated with new totals');
     } catch (updateError) {
       console.error('Failed to update GHL custom object (non-blocking):', updateError.message);
     }
