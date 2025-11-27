@@ -1439,15 +1439,27 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
     // Update GHL custom object with payment link, invoice number, subtotal, and total
     try {
       console.log('Updating GHL custom object with payment link and invoice details...');
-      await ghlService.updateCustomObject(objectData.objectKey, objectData.recordId, [
-        { key: 'payment_link', valueString: confidoResult.paymentUrl },
-        { key: 'invoice_number', valueString: invoiceNumber },
-        { key: 'subtotal', valueNumber: subtotal },
-        { key: 'total', valueNumber: total }
-      ]);
-      console.log('✅ GHL custom object updated with payment link and invoice details');
+
+      // First verify the object still exists
+      console.log('Verifying custom object still exists...');
+      const verifyResponse = await ghlService.getCustomObject(objectData.objectKey, objectData.recordId);
+
+      if (verifyResponse && verifyResponse.record) {
+        console.log('✅ Custom object verified, proceeding with update');
+        await ghlService.updateCustomObject(objectData.objectKey, objectData.recordId, [
+          { key: 'payment_link', valueString: confidoResult.paymentUrl },
+          { key: 'invoice_number', valueString: invoiceNumber },
+          { key: 'subtotal', valueNumber: subtotal },
+          { key: 'total', valueNumber: total }
+        ]);
+        console.log('✅ GHL custom object updated with payment link and invoice details');
+      } else {
+        console.warn('⚠️ Custom object no longer exists in GHL, skipping update');
+      }
     } catch (updateError) {
       console.error('Failed to update GHL custom object (non-blocking):', updateError.message);
+      console.error('This is OK - invoice still created in Confido and Supabase');
+      console.error('Payment link can be retrieved from Supabase if needed');
     }
 
     res.json({
