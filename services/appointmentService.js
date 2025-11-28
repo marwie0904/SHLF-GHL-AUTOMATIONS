@@ -476,12 +476,18 @@ async function processAppointmentCreated(webhookData) {
     const appointmentDetails = await getAppointment(appointmentId);
     console.log('📅 Appointment details:', JSON.stringify(appointmentDetails, null, 2));
 
-    // Get the contact ID from the appointment
-    const appointmentContactId = appointmentDetails?.contactId || appointmentDetails?.contact_id || contactId;
+    // Extract appointment data (may be nested under 'appointment' key)
+    const appointment = appointmentDetails?.appointment || appointmentDetails;
+    const appointmentStartTime = appointment?.startTime || appointment?.start_time;
+    console.log(`📅 Appointment start time: ${appointmentStartTime}`);
 
-    // Fetch contact to get their email
+    // Get the contact ID from the appointment
+    const appointmentContactId = appointment?.contactId || appointment?.contact_id || contactId;
+
+    // Fetch contact to get their email and first name
     let recipientEmail = contactEmail;
     let recipientName = contactName;
+    let recipientFirstName = null;
 
     if (appointmentContactId) {
       try {
@@ -492,6 +498,10 @@ async function processAppointmentCreated(webhookData) {
         if (contact?.email) {
           recipientEmail = contact.email;
           console.log(`✅ Found contact email: ${recipientEmail}`);
+        }
+        if (contact?.firstName) {
+          recipientFirstName = contact.firstName;
+          console.log(`✅ Found contact first name: ${recipientFirstName}`);
         }
         if (contact?.name || contact?.firstName) {
           recipientName = contact.name || `${contact.firstName} ${contact.lastName || ''}`.trim();
@@ -508,7 +518,8 @@ async function processAppointmentCreated(webhookData) {
       emailResult = await sendMeetingConfirmationEmail({
         contactEmail: recipientEmail,
         contactName: recipientName,
-        startTime: appointmentDetails?.startTime || appointmentDetails?.start_time,
+        contactFirstName: recipientFirstName,
+        startTime: appointmentStartTime,
         meetingLocation: meetingData.meeting,
         meetingType: meetingData.meetingType
       });

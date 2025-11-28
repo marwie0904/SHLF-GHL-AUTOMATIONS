@@ -96,7 +96,7 @@ function getLocationText(meetingLocation) {
 /**
  * Generates the HTML email body for meeting confirmation
  * @param {Object} data - Email data
- * @param {string} data.recipientName - Contact name
+ * @param {string} data.firstName - Contact first name
  * @param {string} data.dateTime - Formatted date and time
  * @param {string} data.location - Full address or zoom link
  * @returns {string} HTML email body
@@ -120,6 +120,9 @@ function generateMeetingConfirmationHTML(data) {
           <tr>
             <td style="padding: 20px 40px;">
               <h2 style="color: #1a365d; margin: 0 0 20px 0; font-size: 24px;">Meeting Confirmation</h2>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 10px 0;">
+                Hi ${data.firstName},
+              </p>
               <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
                 We look forward to seeing you on <strong>${data.dateTime}</strong>, in our <strong>${data.location}</strong>.
               </p>
@@ -171,7 +174,8 @@ function generateMeetingConfirmationHTML(data) {
  * Sends a meeting confirmation email via Make.com webhook
  * @param {Object} appointmentData - Appointment data
  * @param {string} appointmentData.contactEmail - Recipient email address
- * @param {string} appointmentData.contactName - Contact name
+ * @param {string} appointmentData.contactName - Contact full name
+ * @param {string} appointmentData.contactFirstName - Contact first name
  * @param {string} appointmentData.startTime - Appointment start time (ISO string)
  * @param {string} appointmentData.meetingLocation - Meeting location (e.g., "Naples", "Fort Myers", "Zoom")
  * @param {string} appointmentData.meetingType - Meeting type
@@ -183,7 +187,7 @@ async function sendMeetingConfirmationEmail(appointmentData) {
     return { success: false, reason: 'Webhook not configured' };
   }
 
-  const { contactEmail, contactName, startTime, meetingLocation, meetingType } = appointmentData;
+  const { contactEmail, contactName, contactFirstName, startTime, meetingLocation, meetingType } = appointmentData;
 
   if (!contactEmail) {
     console.log('⚠️ No contact email provided, skipping confirmation email');
@@ -192,6 +196,7 @@ async function sendMeetingConfirmationEmail(appointmentData) {
 
   console.log('=== Sending Meeting Confirmation Email ===');
   console.log('To:', contactEmail);
+  console.log('First Name:', contactFirstName);
   console.log('Meeting Type:', meetingType);
   console.log('Location:', meetingLocation);
   console.log('Time:', startTime);
@@ -200,9 +205,9 @@ async function sendMeetingConfirmationEmail(appointmentData) {
   const formattedDateTime = formatAppointmentDateTime(startTime);
   const locationText = getLocationText(meetingLocation);
 
-  // Prepare email data
+  // Prepare email data - use first name for greeting, fall back to full name or default
   const emailData = {
-    recipientName: contactName || 'Valued Client',
+    firstName: contactFirstName || contactName || 'Valued Client',
     dateTime: formattedDateTime,
     location: locationText
   };
