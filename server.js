@@ -358,7 +358,8 @@ app.post('/webhooks/ghl/appointment-created', async (req, res) => {
       newTitle: result.title,
       usedFallback: result.usedFallback,
       meetingData: result.meetingData,
-      stageUpdate: result.stageUpdate
+      stageUpdate: result.stageUpdate,
+      emailSent: result.emailSent
     });
 
   } catch (error) {

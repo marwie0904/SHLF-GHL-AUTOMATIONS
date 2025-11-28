@@ -1,5 +1,7 @@
 const axios = require('axios');
 const { searchOpportunitiesByContact } = require('./ghlOpportunityService');
+const { shouldSendConfirmationEmail, sendMeetingConfirmationEmail } = require('./appointmentEmailService');
+const { getContact } = require('./ghlService');
 
 /**
  * Appointment Service
@@ -465,6 +467,56 @@ async function processAppointmentCreated(webhookData) {
     console.log('⚠️ No meeting type found, skipping stage update');
   }
 
+  // Step 6: Send confirmation email for specific meeting types
+  let emailResult = null;
+  if (meetingData?.meetingType && shouldSendConfirmationEmail(meetingData.meetingType)) {
+    console.log(`📧 Meeting type "${meetingData.meetingType}" requires confirmation email`);
+
+    // Fetch full appointment details to get start time
+    const appointmentDetails = await getAppointment(appointmentId);
+    console.log('📅 Appointment details:', JSON.stringify(appointmentDetails, null, 2));
+
+    // Get the contact ID from the appointment
+    const appointmentContactId = appointmentDetails?.contactId || appointmentDetails?.contact_id || contactId;
+
+    // Fetch contact to get their email
+    let recipientEmail = contactEmail;
+    let recipientName = contactName;
+
+    if (appointmentContactId) {
+      try {
+        console.log(`👤 Fetching contact details for: ${appointmentContactId}`);
+        const contactData = await getContact(appointmentContactId);
+        const contact = contactData?.contact || contactData;
+
+        if (contact?.email) {
+          recipientEmail = contact.email;
+          console.log(`✅ Found contact email: ${recipientEmail}`);
+        }
+        if (contact?.name || contact?.firstName) {
+          recipientName = contact.name || `${contact.firstName} ${contact.lastName || ''}`.trim();
+        }
+      } catch (contactError) {
+        console.error('⚠️ Could not fetch contact, using webhook data:', contactError.message);
+      }
+    }
+
+    if (!recipientEmail) {
+      console.log('⚠️ No email found for contact, skipping confirmation email');
+      emailResult = { success: false, reason: 'No email address found' };
+    } else {
+      emailResult = await sendMeetingConfirmationEmail({
+        contactEmail: recipientEmail,
+        contactName: recipientName,
+        startTime: appointmentDetails?.startTime || appointmentDetails?.start_time,
+        meetingLocation: meetingData.meeting,
+        meetingType: meetingData.meetingType
+      });
+    }
+  } else if (meetingData?.meetingType) {
+    console.log(`📧 Meeting type "${meetingData.meetingType}" does not require confirmation email`);
+  }
+
   return {
     success: true,
     appointmentId,
@@ -476,7 +528,8 @@ async function processAppointmentCreated(webhookData) {
       opportunityIdSource: opportunityId ? 'webhook' : (resolvedOpportunityId ? 'search' : 'not_found'),
       targetStageId,
       success: !!stageUpdateResult
-    }
+    },
+    emailSent: emailResult
   };
 }
 
