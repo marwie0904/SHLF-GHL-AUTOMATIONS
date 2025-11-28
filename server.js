@@ -1174,6 +1174,46 @@ app.post('/webhooks/confido/payment-received', async (req, res) => {
       }
     }
 
+    // Send paid invoice email to client
+    let emailSent = false;
+    if (invoice.ghl_contact_id) {
+      try {
+        // Get contact email from GHL
+        const contactResponse = await ghlService.getContact(invoice.ghl_contact_id);
+        const contactEmail = contactResponse?.contact?.email;
+
+        if (contactEmail) {
+          console.log('Sending paid invoice email to:', contactEmail);
+          const { sendPaidInvoiceEmail } = require('./services/invoiceEmailService');
+
+          const paidInvoiceData = {
+            billedTo: invoice.primary_contact_name || contactResponse?.contact?.name || 'Valued Client',
+            invoiceNumber: invoice.invoice_number,
+            issueDate: invoice.invoice_date ? new Date(invoice.invoice_date) : new Date(),
+            dueDate: invoice.due_date ? new Date(invoice.due_date) : new Date(),
+            lineItems: (invoice.service_items || []).map(item => ({
+              name: item.name,
+              price: item.price,
+              quantity: item.quantity || 1,
+              tax: '-',
+              subtotal: item.price * (item.quantity || 1)
+            })),
+            subtotal: parseFloat(invoice.amount_due),
+            amountDue: parseFloat(invoice.amount_due),
+            paymentsReceived: paymentData.amount
+          };
+
+          await sendPaidInvoiceEmail(paidInvoiceData, contactEmail);
+          console.log('✅ Paid invoice email sent successfully');
+          emailSent = true;
+        } else {
+          console.warn('⚠️ No contact email found, skipping paid invoice email');
+        }
+      } catch (emailError) {
+        console.error('Failed to send paid invoice email (non-blocking):', emailError.message);
+      }
+    }
+
     res.json({
       success: true,
       message: 'Payment processed successfully',
@@ -1182,7 +1222,8 @@ app.post('/webhooks/confido/payment-received', async (req, res) => {
       invoiceId: invoice.id,
       ghlInvoiceId: invoice.ghl_invoice_id,
       amount: paymentData.amount,
-      invoiceStatus: 'paid'
+      invoiceStatus: 'paid',
+      emailSent: emailSent
     });
 
   } catch (error) {
@@ -1795,6 +1836,39 @@ app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
         console.error('Failed to update GHL custom object (non-blocking):', updateError.message);
       }
 
+      // Send invoice email to client
+      const contactEmail = opportunity.contact?.email;
+      if (contactEmail) {
+        try {
+          console.log('Sending invoice email to:', contactEmail);
+          const { sendInvoiceEmail } = require('./services/invoiceEmailService');
+
+          const invoiceEmailData = {
+            billedTo: opportunity.contact?.name || opportunity.name,
+            invoiceNumber: invoiceNumber,
+            issueDate: new Date(),
+            dueDate: invoiceRecord.properties.due_date ? new Date(invoiceRecord.properties.due_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            lineItems: lineItems.map(item => ({
+              name: item.name,
+              price: item.price,
+              quantity: item.quantity || 1,
+              tax: '-',
+              subtotal: item.price * (item.quantity || 1)
+            })),
+            subtotal: total,
+            amountDue: total,
+            paymentLink: confidoResult.paymentUrl
+          };
+
+          await sendInvoiceEmail(invoiceEmailData, contactEmail);
+          console.log('✅ Invoice email sent successfully');
+        } catch (emailError) {
+          console.error('Failed to send invoice email (non-blocking):', emailError.message);
+        }
+      } else {
+        console.warn('⚠️ No contact email found, skipping invoice email');
+      }
+
       return res.json({
         success: true,
         message: 'Invoice created in Confido and saved to Supabase',
@@ -1802,6 +1876,7 @@ app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
         opportunityId: opportunity.id,
         total: total,
         lineItems: lineItems,
+        emailSent: !!contactEmail,
         confido: {
           invoiceId: confidoResult.confidoInvoiceId,
           paymentUrl: confidoResult.paymentUrl,
