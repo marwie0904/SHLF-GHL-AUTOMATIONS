@@ -590,14 +590,18 @@ async function deletePaymentLink(paymentLinkId) {
     console.log('PaymentLink ID:', paymentLinkId);
 
     const mutation = `
-      mutation RemovePaymentLink($id: ID!) {
-        removePaymentLink(id: $id) {
+      mutation RemovePaymentLink($input: RemovePaymentLinkInput!) {
+        removePaymentLink(input: $input) {
           id
         }
       }
     `;
 
-    const variables = { id: paymentLinkId };
+    const variables = {
+      input: {
+        id: paymentLinkId
+      }
+    };
     const result = await executeGraphQL(mutation, variables);
 
     console.log('✅ PaymentLink deleted successfully from Confido');
