@@ -24,6 +24,11 @@ const DISCOVERY_CALL_MEETING_TYPES = [
   'Probate Discovery Call'
 ];
 
+// Meeting types that trigger trust admin emails
+const TRUST_ADMIN_MEETING_TYPES = [
+  'Trust Admin Meeting'
+];
+
 // JotForm link for Personal and Financial Information form
 const JOTFORM_LINK = 'https://form.jotform.com/252972444974066';
 
@@ -36,6 +41,10 @@ const BROCHURE_LINK = 'https://storage.googleapis.com/msgsndr/afYLuZPi37CZR1IpJl
 // Estate Questionnaire link for Probate Discovery Calls
 // TODO: Replace with actual questionnaire link
 const ESTATE_QUESTIONNAIRE_LINK = '[ESTATE_QUESTIONNAIRE_LINK]';
+
+// Trust Admin Questionnaire link
+// TODO: Replace with actual questionnaire link
+const TRUST_ADMIN_QUESTIONNAIRE_LINK = '[TRUST_ADMIN_QUESTIONNAIRE_LINK]';
 
 // Office addresses by meeting location
 // TODO: Replace placeholders with actual addresses
@@ -72,6 +81,16 @@ function shouldSendConfirmationEmail(meetingType) {
 function shouldSendDiscoveryCallEmail(meetingType) {
   if (!meetingType) return false;
   return DISCOVERY_CALL_MEETING_TYPES.includes(meetingType);
+}
+
+/**
+ * Checks if the meeting type requires a trust admin email
+ * @param {string} meetingType - The meeting type
+ * @returns {boolean} True if trust admin email should be sent
+ */
+function shouldSendTrustAdminEmail(meetingType) {
+  if (!meetingType) return false;
+  return TRUST_ADMIN_MEETING_TYPES.includes(meetingType);
 }
 
 /**
@@ -339,6 +358,146 @@ async function sendProbateDiscoveryCallEmail(appointmentData) {
 }
 
 /**
+ * Generates the HTML email body for Trust Admin Meeting confirmation
+ * @param {Object} data - Email data
+ * @param {string} data.firstName - Contact first name
+ * @param {string} data.dateTime - Formatted date and time
+ * @param {string} data.location - Full address or zoom link
+ * @returns {string} HTML email body
+ */
+function generateTrustAdminMeetingHTML(data) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #e8f4fc;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #e8f4fc; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px;">
+          <tr>
+            <td align="center" style="padding: 40px 40px 20px 40px;">
+              <img src="${LOGO_URL}" alt="Safe Harbor Law Firm" width="400" style="max-width: 100%;">
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 40px;">
+              <h2 style="color: #1a365d; margin: 0 0 20px 0; font-size: 24px;">Meeting Confirmation</h2>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 10px 0;">
+                Hi ${data.firstName},
+              </p>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                We look forward to seeing you on <strong>${data.dateTime}</strong>, in our <strong>${data.location}</strong>.
+              </p>
+
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 10px 0;">
+                <strong>Before your appointment, please submit the following:</strong>
+              </p>
+
+              <ul style="color: #333; font-size: 16px; line-height: 1.8; margin: 0 0 20px 0; padding-left: 20px;">
+                <li style="margin-bottom: 10px;">
+                  <strong>Trust Admin Questionnaire</strong> – This helps our attorney understand your situation and gain a full picture ahead of time.
+                  <br>
+                  <a href="${TRUST_ADMIN_QUESTIONNAIRE_LINK}" style="color: #2b6cb0; text-decoration: underline;">Complete Trust Admin Questionnaire</a>
+                </li>
+                <li style="margin-bottom: 10px;">
+                  Decedent's documents (Trust, Will, Death Certificate, and all other pertinent documents) (if available)
+                </li>
+              </ul>
+
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                Should you need to cancel your appointment, be sure to do so at least 24 hours prior to your scheduled meeting. If you do not show up to your scheduled appointment, you will forfeit your complimentary meeting and your next meeting will be charged at the attorney's hourly rate.
+              </p>
+
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 20px 0;">
+                If you have any questions, please respond to this email or give us a call/text at <strong>239-317-3116</strong>.
+              </p>
+
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 20px 0 0 0;">
+                Regards,<br><strong>Safe Harbor Law Firm</strong>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * Sends a Trust Admin Meeting confirmation email via Make.com webhook
+ * @param {Object} appointmentData - Appointment data
+ * @param {string} appointmentData.contactEmail - Recipient email address
+ * @param {string} appointmentData.contactName - Contact full name
+ * @param {string} appointmentData.contactFirstName - Contact first name
+ * @param {string} appointmentData.startTime - Appointment start time (ISO string)
+ * @param {string} appointmentData.meetingLocation - Meeting location (e.g., "Naples", "Fort Myers", "Zoom")
+ * @param {string} appointmentData.meetingType - Meeting type
+ * @returns {Promise<Object>} Webhook response
+ */
+async function sendTrustAdminMeetingEmail(appointmentData) {
+  if (!MAKE_WEBHOOK_URL) {
+    console.log('⚠️ MAKE_APPOINTMENT_EMAIL_WEBHOOK not configured, skipping email');
+    return { success: false, reason: 'Webhook not configured' };
+  }
+
+  const { contactEmail, contactName, contactFirstName, startTime, meetingLocation, meetingType } = appointmentData;
+
+  if (!contactEmail) {
+    console.log('⚠️ No contact email provided, skipping Trust Admin email');
+    return { success: false, reason: 'No email address' };
+  }
+
+  console.log('=== Sending Trust Admin Meeting Email ===');
+  console.log('To:', contactEmail);
+  console.log('First Name:', contactFirstName);
+  console.log('Meeting Type:', meetingType);
+  console.log('Location:', meetingLocation);
+  console.log('Time:', startTime);
+
+  // Format date/time and get location text
+  const formattedDateTime = formatAppointmentDateTime(startTime);
+  const locationText = getLocationText(meetingLocation);
+
+  // Prepare email data
+  const emailData = {
+    firstName: contactFirstName || contactName || 'Valued Client',
+    dateTime: formattedDateTime,
+    location: locationText
+  };
+
+  // Generate HTML body
+  const htmlBody = generateTrustAdminMeetingHTML(emailData);
+
+  // Prepare webhook payload
+  const payload = {
+    to: contactEmail,
+    subject: 'Meeting Confirmation: Safe Harbor Law Firm',
+    htmlBody: htmlBody,
+    type: 'trust_admin_meeting'
+  };
+
+  try {
+    const response = await axios.post(MAKE_WEBHOOK_URL, payload, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    console.log('✅ Trust Admin Meeting email sent successfully');
+    return { success: true, response: response.data };
+
+  } catch (error) {
+    console.error('❌ Failed to send Trust Admin Meeting email:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Sends a meeting confirmation email via Make.com webhook
  * @param {Object} appointmentData - Appointment data
  * @param {string} appointmentData.contactEmail - Recipient email address
@@ -412,13 +571,17 @@ async function sendMeetingConfirmationEmail(appointmentData) {
 module.exports = {
   shouldSendConfirmationEmail,
   shouldSendDiscoveryCallEmail,
+  shouldSendTrustAdminEmail,
   sendMeetingConfirmationEmail,
   sendProbateDiscoveryCallEmail,
+  sendTrustAdminMeetingEmail,
   formatAppointmentDateTime,
   getLocationText,
   generateMeetingConfirmationHTML,
   generateProbateDiscoveryCallHTML,
+  generateTrustAdminMeetingHTML,
   EMAIL_TRIGGER_MEETING_TYPES,
   DISCOVERY_CALL_MEETING_TYPES,
+  TRUST_ADMIN_MEETING_TYPES,
   MEETING_LOCATIONS
 };
