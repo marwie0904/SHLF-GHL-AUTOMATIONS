@@ -1258,11 +1258,61 @@ app.post('/webhooks/ghl/association-created', async (req, res) => {
 });
 
 // GHL Custom Object (Invoice) Created webhook endpoint
+// Note: GHL may send all custom object events (Create, Update, Delete) to this endpoint
+// We route based on the 'type' field in the payload
 app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
   try {
-    console.log('=== GHL CUSTOM OBJECT CREATED WEBHOOK RECEIVED ===');
+    console.log('=== GHL CUSTOM OBJECT WEBHOOK RECEIVED ===');
     console.log('Timestamp:', new Date().toISOString());
     console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
+
+    const eventType = req.body.type || 'RecordCreate';
+
+    // Route to appropriate handler based on event type
+    if (eventType === 'RecordDelete') {
+      console.log('📍 Routing to DELETE handler...');
+      // Forward to delete endpoint internally
+      const axios = require('axios');
+      try {
+        const deleteResponse = await axios.post(
+          'http://localhost:' + (process.env.PORT || 3000) + '/webhooks/ghl/custom-object-deleted',
+          req.body,
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+        return res.json(deleteResponse.data);
+      } catch (deleteError) {
+        console.error('Error forwarding to delete handler:', deleteError.message);
+        return res.status(500).json({
+          success: false,
+          message: 'Error processing delete webhook',
+          error: deleteError.message
+        });
+      }
+    }
+
+    if (eventType === 'RecordUpdate') {
+      console.log('📍 Routing to UPDATE handler...');
+      // Forward to update endpoint internally
+      const axios = require('axios');
+      try {
+        const updateResponse = await axios.post(
+          'http://localhost:' + (process.env.PORT || 3000) + '/webhooks/ghl/custom-object-updated',
+          req.body,
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+        return res.json(updateResponse.data);
+      } catch (updateError) {
+        console.error('Error forwarding to update handler:', updateError.message);
+        return res.status(500).json({
+          success: false,
+          message: 'Error processing update webhook',
+          error: updateError.message
+        });
+      }
+    }
+
+    // Continue with RecordCreate handling
+    console.log('📍 Processing as CREATE event...');
 
     const ghlService = require('./services/ghlService');
     const confidoService = require('./services/confidoService');
@@ -1273,7 +1323,7 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
       recordId: req.body.id || req.body.recordId,
       objectKey: req.body.objectKey || req.body.schemaKey,
       locationId: req.body.locationId,
-      type: req.body.type || 'RecordCreate'
+      type: eventType
     };
 
     console.log('Custom Object Data:', JSON.stringify(objectData, null, 2));
