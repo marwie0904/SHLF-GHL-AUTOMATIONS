@@ -8,10 +8,36 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 
-// Load the actual logo file and convert to base64
-const LOGO_PATH = path.join(__dirname, '..', 'shlf-image.png');
-const LOGO_BASE64 = `data:image/png;base64,${fs.readFileSync(LOGO_PATH).toString('base64')}`;
+// Use hosted logo URL - will be fetched and converted to base64 when needed
+const LOGO_URL = 'https://storage.googleapis.com/msgsndr/afYLuZPi37CZR1IpJlfn/media/68f107369d906785d9458314.png';
+
+// Cache for logo base64 to avoid fetching multiple times
+let LOGO_BASE64_CACHE = null;
+
+/**
+ * Fetches the logo from URL and converts to base64
+ * @returns {Promise<string>} Base64 data URL for the logo
+ */
+async function getLogoBase64() {
+  if (LOGO_BASE64_CACHE) {
+    return LOGO_BASE64_CACHE;
+  }
+
+  return new Promise((resolve, reject) => {
+    https.get(LOGO_URL, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => {
+        const buffer = Buffer.concat(chunks);
+        LOGO_BASE64_CACHE = `data:image/png;base64,${buffer.toString('base64')}`;
+        resolve(LOGO_BASE64_CACHE);
+      });
+      response.on('error', reject);
+    }).on('error', reject);
+  });
+}
 
 /**
  * Formats a number as USD currency
@@ -58,14 +84,17 @@ function formatDateShort(date) {
 /**
  * Generates HTML from the invoice template with data
  * @param {Object} invoiceData - Invoice data to populate template
- * @returns {string} Populated HTML string
+ * @returns {Promise<string>} Populated HTML string
  */
-function generateInvoiceHTML(invoiceData) {
+async function generateInvoiceHTML(invoiceData) {
   const templatePath = path.join(__dirname, '..', 'templates', 'invoice-template.html');
   let html = fs.readFileSync(templatePath, 'utf8');
 
+  // Get logo as base64
+  const logoBase64 = await getLogoBase64();
+
   // Replace simple placeholders
-  html = html.replace(/\{\{logoBase64\}\}/g, LOGO_BASE64);
+  html = html.replace(/\{\{logoBase64\}\}/g, logoBase64);
   html = html.replace(/\{\{billedTo\}\}/g, invoiceData.billedTo || '-');
   html = html.replace(/\{\{invoiceNumber\}\}/g, invoiceData.invoiceNumber || '-');
   html = html.replace(/\{\{issueDate\}\}/g, formatDate(invoiceData.issueDate));
@@ -119,7 +148,7 @@ async function generateInvoicePDF(invoiceData) {
     console.log('Amount Due:', invoiceData.amountDue);
 
     // Generate HTML with data
-    const html = generateInvoiceHTML(invoiceData);
+    const html = await generateInvoiceHTML(invoiceData);
 
     // Launch Puppeteer
     browser = await puppeteer.launch({
@@ -196,17 +225,20 @@ async function generateAndSaveInvoicePDF(invoiceData, outputPath = null) {
 /**
  * Generates HTML from the paid invoice template with data
  * @param {Object} invoiceData - Invoice data to populate template
- * @returns {string} Populated HTML string
+ * @returns {Promise<string>} Populated HTML string
  */
-function generatePaidInvoiceHTML(invoiceData) {
+async function generatePaidInvoiceHTML(invoiceData) {
   const templatePath = path.join(__dirname, '..', 'templates', 'invoice-paid-template.html');
   let html = fs.readFileSync(templatePath, 'utf8');
 
   // Calculate balance due (should be 0 for paid invoice)
   const balanceDue = (invoiceData.amountDue || 0) - (invoiceData.paymentsReceived || invoiceData.amountDue || 0);
 
+  // Get logo as base64
+  const logoBase64 = await getLogoBase64();
+
   // Replace simple placeholders
-  html = html.replace(/\{\{logoBase64\}\}/g, LOGO_BASE64);
+  html = html.replace(/\{\{logoBase64\}\}/g, logoBase64);
   html = html.replace(/\{\{billedTo\}\}/g, invoiceData.billedTo || '-');
   html = html.replace(/\{\{invoiceNumber\}\}/g, invoiceData.invoiceNumber || '-');
   html = html.replace(/\{\{issueDate\}\}/g, formatDate(invoiceData.issueDate));
@@ -264,7 +296,7 @@ async function generatePaidInvoicePDF(invoiceData) {
     console.log('Payments Received:', invoiceData.paymentsReceived || invoiceData.amountDue);
 
     // Generate HTML with data
-    const html = generatePaidInvoiceHTML(invoiceData);
+    const html = await generatePaidInvoiceHTML(invoiceData);
 
     // Launch Puppeteer
     browser = await puppeteer.launch({
