@@ -10,6 +10,54 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
+/**
+ * Get Puppeteer launch options based on environment
+ * Digital Ocean App Platform requires specific configuration
+ */
+function getPuppeteerLaunchOptions() {
+  const baseOptions = {
+    headless: 'new',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process',
+      '--disable-extensions'
+    ]
+  };
+
+  // Check for PUPPETEER_EXECUTABLE_PATH env var first (can be set in Digital Ocean)
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    console.log('Using PUPPETEER_EXECUTABLE_PATH:', process.env.PUPPETEER_EXECUTABLE_PATH);
+    baseOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    return baseOptions;
+  }
+
+  // Try to find system chromium (for production environments)
+  const possiblePaths = [
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/snap/bin/chromium'
+  ];
+
+  for (const chromePath of possiblePaths) {
+    if (fs.existsSync(chromePath)) {
+      console.log('Using system Chrome at:', chromePath);
+      baseOptions.executablePath = chromePath;
+      return baseOptions;
+    }
+  }
+
+  // Let Puppeteer use its bundled browser (works locally)
+  console.log('Using Puppeteer bundled browser');
+  return baseOptions;
+}
+
 // Use hosted logo URL - will be fetched and converted to base64 when needed
 const LOGO_URL = 'https://storage.googleapis.com/msgsndr/afYLuZPi37CZR1IpJlfn/media/68f107369d906785d9458314.png';
 
@@ -150,11 +198,8 @@ async function generateInvoicePDF(invoiceData) {
     // Generate HTML with data
     const html = await generateInvoiceHTML(invoiceData);
 
-    // Launch Puppeteer
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    // Launch Puppeteer with environment-appropriate options
+    browser = await puppeteer.launch(getPuppeteerLaunchOptions());
 
     const page = await browser.newPage();
 
@@ -298,11 +343,8 @@ async function generatePaidInvoicePDF(invoiceData) {
     // Generate HTML with data
     const html = await generatePaidInvoiceHTML(invoiceData);
 
-    // Launch Puppeteer
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    // Launch Puppeteer with environment-appropriate options
+    browser = await puppeteer.launch(getPuppeteerLaunchOptions());
 
     const page = await browser.newPage();
 
