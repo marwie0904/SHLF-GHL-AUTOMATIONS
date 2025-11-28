@@ -25,6 +25,9 @@ const JOTFORM_LINK = 'https://form.jotform.com/252972444974066';
 // Workshop registration link
 const WORKSHOP_LINK = 'https://safeharborlaw.mykajabi.com/offers/4G46XzDJ/checkout';
 
+// Brochure PDF download link
+const BROCHURE_LINK = 'https://storage.googleapis.com/msgsndr/afYLuZPi37CZR1IpJlfn/media/6929c210850cc4f85b2e7a03.pdf';
+
 // Office addresses by meeting location
 // TODO: Replace placeholders with actual addresses
 const MEETING_LOCATIONS = {
@@ -146,7 +149,9 @@ function generateMeetingConfirmationHTML(data) {
                   <a href="${WORKSHOP_LINK}" style="display: inline-block; background-color: #2b6cb0; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 4px; font-size: 14px; font-weight: bold;">Register Here</a>
                 </li>
                 <li style="margin-bottom: 15px;">
-                  During the meeting, the attorney may request to speak with the client privately for a few minutes. This is a normal part of our process and helps ensure their wishes are clearly understood and their plan is fully protected. Attached is a brochure explaining the process.
+                  During the meeting, the attorney may request to speak with the client privately for a few minutes. This is a normal part of our process and helps ensure their wishes are clearly understood and their plan is fully protected. Click below to download our brochure explaining the process.
+                  <br><br>
+                  <a href="${BROCHURE_LINK}" style="display: inline-block; background-color: #48bb78; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 4px; font-size: 14px; font-weight: bold;" download>Download Brochure</a>
                 </li>
                 <li style="margin-bottom: 15px;">
                   Should you need to cancel your appointment, be sure to do so at least 24 hours prior to your scheduled meeting. If you do not show up to your scheduled appointment, your next meeting will be charged at the attorney's hourly rate.
