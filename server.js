@@ -1131,6 +1131,23 @@ app.post('/webhooks/confido/payment-received', async (req, res) => {
         console.error('Failed to record payment in GHL invoice:', ghlError.message);
         // Don't fail the request - payment is already recorded in Supabase
       }
+
+      // Update GHL custom object status to 'paid'
+      try {
+        console.log('Updating GHL custom object status to paid...');
+        await ghlService.updateCustomObject(
+          'custom_objects.invoices',
+          invoice.ghl_invoice_id,
+          process.env.GHL_LOCATION_ID,
+          {
+            status: ['paid'] // CHECKBOX field requires array format
+          }
+        );
+        console.log('✅ GHL custom object status updated to paid');
+      } catch (statusError) {
+        console.error('Failed to update GHL custom object status:', statusError.message);
+        // Don't fail the request - payment is already recorded
+      }
     }
 
     // Create task/note in GHL to notify about payment
@@ -1707,7 +1724,7 @@ app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
       });
       console.log('✅ Invoice saved to Supabase');
 
-      // Update GHL custom object with payment link, invoice number, subtotal, and total
+      // Update GHL custom object with payment link, invoice number, subtotal, total, and status
       const subtotal = total;
       try {
         console.log('Updating GHL custom object with payment link and invoice details...');
@@ -1719,10 +1736,11 @@ app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
             payment_link: confidoResult.paymentUrl,
             invoice_number: invoiceNumber,
             subtotal: { value: subtotal, currency: 'default' },
-            total: { value: total, currency: 'default' }
+            total: { value: total, currency: 'default' },
+            status: ['unpaid'] // CHECKBOX field requires array format
           }
         );
-        console.log('✅ GHL custom object updated with payment link, invoice number, subtotal, and total');
+        console.log('✅ GHL custom object updated with payment link, invoice number, subtotal, total, and status');
       } catch (updateError) {
         console.error('Failed to update GHL custom object (non-blocking):', updateError.message);
       }
