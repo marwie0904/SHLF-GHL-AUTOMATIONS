@@ -1140,7 +1140,7 @@ app.post('/webhooks/confido/payment-received', async (req, res) => {
           invoice.ghl_invoice_id,
           process.env.GHL_LOCATION_ID,
           {
-            status: ['paid'] // CHECKBOX field requires array format
+            status: 'paid'
           }
         );
         console.log('✅ GHL custom object status updated to paid');
@@ -1787,7 +1787,7 @@ app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
             invoice_number: invoiceNumber,
             subtotal: { value: subtotal, currency: 'default' },
             total: { value: total, currency: 'default' },
-            status: ['unpaid'] // CHECKBOX field requires array format
+            status: 'unpaid'
           }
         );
         console.log('✅ GHL custom object updated with payment link, invoice number, subtotal, total, and status');
