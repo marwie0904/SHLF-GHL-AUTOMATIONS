@@ -35,6 +35,11 @@ const GENERAL_DISCOVERY_CALL_TYPES = [
   'Deed Discovery Call'
 ];
 
+// Meeting types that trigger doc review emails
+const DOC_REVIEW_MEETING_TYPES = [
+  'Doc Review Meeting'
+];
+
 // JotForm link for Personal and Financial Information form
 const JOTFORM_LINK = 'https://form.jotform.com/252972444974066';
 
@@ -107,6 +112,16 @@ function shouldSendTrustAdminEmail(meetingType) {
 function shouldSendGeneralDiscoveryCallEmail(meetingType) {
   if (!meetingType) return false;
   return GENERAL_DISCOVERY_CALL_TYPES.includes(meetingType);
+}
+
+/**
+ * Checks if the meeting type requires a doc review email
+ * @param {string} meetingType - The meeting type
+ * @returns {boolean} True if doc review email should be sent
+ */
+function shouldSendDocReviewEmail(meetingType) {
+  if (!meetingType) return false;
+  return DOC_REVIEW_MEETING_TYPES.includes(meetingType);
 }
 
 /**
@@ -641,6 +656,150 @@ async function sendGeneralDiscoveryCallEmail(appointmentData) {
 }
 
 /**
+ * Generates the HTML email body for Doc Review Meeting confirmation
+ * @param {Object} data - Email data
+ * @param {string} data.firstName - Contact first name
+ * @param {string} data.dateTime - Formatted date and time
+ * @param {string} data.location - Full address or zoom link
+ * @returns {string} HTML email body
+ */
+function generateDocReviewMeetingHTML(data) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #e8f4fc;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #e8f4fc; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px;">
+          <tr>
+            <td align="center" style="padding: 40px 40px 20px 40px;">
+              <img src="${LOGO_URL}" alt="Safe Harbor Law Firm" width="400" style="max-width: 100%;">
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 40px;">
+              <h2 style="color: #1a365d; margin: 0 0 20px 0; font-size: 24px;">Document Review Meeting Confirmation</h2>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 10px 0;">
+                Hi ${data.firstName},
+              </p>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                We look forward to meeting with you on <strong>${data.dateTime}</strong> at <strong>${data.location}</strong>.
+              </p>
+
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 10px 0;">
+                <strong>A few helpful reminders:</strong>
+              </p>
+
+              <ul style="color: #333; font-size: 16px; line-height: 1.8; margin: 0 0 20px 0; padding-left: 20px;">
+                <li style="margin-bottom: 15px;">
+                  Please share a copy of any documents you'd like the attorney to review during your meeting. This helps us prepare and make the most of your time. You may also bring the documents at the time of the appointment.
+                </li>
+                <li style="margin-bottom: 15px;">
+                  This is a 1-hour consultation where the attorney will briefly review your documents and discuss them with you. If a more detailed or in-depth review is needed after this meeting, it will be billed at the attorney's standard hourly rate.
+                </li>
+                <li style="margin-bottom: 15px;">
+                  Booking this meeting does not establish formal legal representation. Representation begins only after a signed engagement agreement.
+                </li>
+              </ul>
+
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 10px 0;">
+                <strong>Appointment changes:</strong>
+              </p>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                If you need to cancel or reschedule, please do so at least 24 hours in advance, otherwise you will be forfeiting the meeting, and any future consultation will be charged at the attorney's hourly rate.
+              </p>
+
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 20px 0;">
+                If you have any questions, feel free to reply to this email or call/text us at <strong>239-317-3116</strong>. We're happy to help!
+              </p>
+
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 20px 0 0 0;">
+                Regards,<br><strong>Safe Harbor Law Firm</strong>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * Sends a Doc Review Meeting confirmation email via Make.com webhook
+ * @param {Object} appointmentData - Appointment data
+ * @param {string} appointmentData.contactEmail - Recipient email address
+ * @param {string} appointmentData.contactName - Contact full name
+ * @param {string} appointmentData.contactFirstName - Contact first name
+ * @param {string} appointmentData.startTime - Appointment start time (ISO string)
+ * @param {string} appointmentData.meetingLocation - Meeting location (e.g., "Naples", "Fort Myers", "Zoom")
+ * @param {string} appointmentData.meetingType - Meeting type
+ * @returns {Promise<Object>} Webhook response
+ */
+async function sendDocReviewMeetingEmail(appointmentData) {
+  if (!MAKE_WEBHOOK_URL) {
+    console.log('⚠️ MAKE_APPOINTMENT_EMAIL_WEBHOOK not configured, skipping email');
+    return { success: false, reason: 'Webhook not configured' };
+  }
+
+  const { contactEmail, contactName, contactFirstName, startTime, meetingLocation, meetingType } = appointmentData;
+
+  if (!contactEmail) {
+    console.log('⚠️ No contact email provided, skipping Doc Review email');
+    return { success: false, reason: 'No email address' };
+  }
+
+  console.log('=== Sending Doc Review Meeting Email ===');
+  console.log('To:', contactEmail);
+  console.log('First Name:', contactFirstName);
+  console.log('Meeting Type:', meetingType);
+  console.log('Location:', meetingLocation);
+  console.log('Time:', startTime);
+
+  // Format date/time and get location text
+  const formattedDateTime = formatAppointmentDateTime(startTime);
+  const locationText = getLocationText(meetingLocation);
+
+  // Prepare email data
+  const emailData = {
+    firstName: contactFirstName || contactName || 'Valued Client',
+    dateTime: formattedDateTime,
+    location: locationText
+  };
+
+  // Generate HTML body
+  const htmlBody = generateDocReviewMeetingHTML(emailData);
+
+  // Prepare webhook payload
+  const payload = {
+    to: contactEmail,
+    subject: 'Document Review Meeting Confirmation: Safe Harbor Law Firm',
+    htmlBody: htmlBody,
+    type: 'doc_review_meeting'
+  };
+
+  try {
+    const response = await axios.post(MAKE_WEBHOOK_URL, payload, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    console.log('✅ Doc Review Meeting email sent successfully');
+    return { success: true, response: response.data };
+
+  } catch (error) {
+    console.error('❌ Failed to send Doc Review Meeting email:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Sends a meeting confirmation email via Make.com webhook
  * @param {Object} appointmentData - Appointment data
  * @param {string} appointmentData.contactEmail - Recipient email address
@@ -716,19 +875,23 @@ module.exports = {
   shouldSendDiscoveryCallEmail,
   shouldSendTrustAdminEmail,
   shouldSendGeneralDiscoveryCallEmail,
+  shouldSendDocReviewEmail,
   sendMeetingConfirmationEmail,
   sendProbateDiscoveryCallEmail,
   sendTrustAdminMeetingEmail,
   sendGeneralDiscoveryCallEmail,
+  sendDocReviewMeetingEmail,
   formatAppointmentDateTime,
   getLocationText,
   generateMeetingConfirmationHTML,
   generateProbateDiscoveryCallHTML,
   generateTrustAdminMeetingHTML,
   generateGeneralDiscoveryCallHTML,
+  generateDocReviewMeetingHTML,
   EMAIL_TRIGGER_MEETING_TYPES,
   DISCOVERY_CALL_MEETING_TYPES,
   TRUST_ADMIN_MEETING_TYPES,
   GENERAL_DISCOVERY_CALL_TYPES,
+  DOC_REVIEW_MEETING_TYPES,
   MEETING_LOCATIONS
 };

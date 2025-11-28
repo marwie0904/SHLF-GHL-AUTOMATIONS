@@ -1,6 +1,6 @@
 const axios = require('axios');
 const { searchOpportunitiesByContact } = require('./ghlOpportunityService');
-const { shouldSendConfirmationEmail, sendMeetingConfirmationEmail, shouldSendDiscoveryCallEmail, sendProbateDiscoveryCallEmail, shouldSendTrustAdminEmail, sendTrustAdminMeetingEmail, shouldSendGeneralDiscoveryCallEmail, sendGeneralDiscoveryCallEmail } = require('./appointmentEmailService');
+const { shouldSendConfirmationEmail, sendMeetingConfirmationEmail, shouldSendDiscoveryCallEmail, sendProbateDiscoveryCallEmail, shouldSendTrustAdminEmail, sendTrustAdminMeetingEmail, shouldSendGeneralDiscoveryCallEmail, sendGeneralDiscoveryCallEmail, shouldSendDocReviewEmail, sendDocReviewMeetingEmail } = require('./appointmentEmailService');
 const { getContact } = require('./ghlService');
 
 /**
@@ -473,12 +473,14 @@ async function processAppointmentCreated(webhookData) {
   const requiresDiscoveryCallEmail = meetingData?.meetingType && shouldSendDiscoveryCallEmail(meetingData.meetingType);
   const requiresTrustAdminEmail = meetingData?.meetingType && shouldSendTrustAdminEmail(meetingData.meetingType);
   const requiresGeneralDiscoveryCallEmail = meetingData?.meetingType && shouldSendGeneralDiscoveryCallEmail(meetingData.meetingType);
+  const requiresDocReviewEmail = meetingData?.meetingType && shouldSendDocReviewEmail(meetingData.meetingType);
 
-  if (requiresConfirmationEmail || requiresDiscoveryCallEmail || requiresTrustAdminEmail || requiresGeneralDiscoveryCallEmail) {
+  if (requiresConfirmationEmail || requiresDiscoveryCallEmail || requiresTrustAdminEmail || requiresGeneralDiscoveryCallEmail || requiresDocReviewEmail) {
     let emailType = 'confirmation';
     if (requiresDiscoveryCallEmail) emailType = 'probate discovery call';
     if (requiresTrustAdminEmail) emailType = 'trust admin';
     if (requiresGeneralDiscoveryCallEmail) emailType = 'general discovery call';
+    if (requiresDocReviewEmail) emailType = 'doc review';
     console.log(`📧 Meeting type "${meetingData.meetingType}" requires ${emailType} email`);
 
     // Fetch full appointment details to get start time
@@ -566,6 +568,16 @@ async function processAppointmentCreated(webhookData) {
         contactFirstName: recipientFirstName,
         contactPhone: recipientPhone,
         startTime: appointmentStartTime,
+        meetingType: meetingData.meetingType
+      });
+    } else if (requiresDocReviewEmail) {
+      // Send doc review meeting email (Doc Review Meeting)
+      emailResult = await sendDocReviewMeetingEmail({
+        contactEmail: recipientEmail,
+        contactName: recipientName,
+        contactFirstName: recipientFirstName,
+        startTime: appointmentStartTime,
+        meetingLocation: meetingData.meeting,
         meetingType: meetingData.meetingType
       });
     }
