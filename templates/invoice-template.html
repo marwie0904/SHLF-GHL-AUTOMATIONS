@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invoice - {{invoiceNumber}}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 14px;
+      color: #333;
+      background: #fff;
+      padding: 40px 50px;
+    }
+
+    .invoice-container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header {
+      border-bottom: 3px solid #1a365d;
+      padding-bottom: 10px;
+      margin-bottom: 30px;
+    }
+
+    .header-title {
+      text-align: right;
+      font-size: 36px;
+      font-weight: bold;
+      color: #1a365d;
+      letter-spacing: 2px;
+    }
+
+    /* Company Info Section */
+    .company-section {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 40px;
+    }
+
+    .logo-section {
+      width: 45%;
+    }
+
+    .logo {
+      max-width: 280px;
+      height: auto;
+    }
+
+    .company-details {
+      width: 50%;
+      text-align: right;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #444;
+    }
+
+    .company-name {
+      font-weight: 600;
+      color: #1a365d;
+    }
+
+    .company-website {
+      color: #2b6cb0;
+      text-decoration: none;
+    }
+
+    /* Billing Section */
+    .billing-section {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 60px;
+    }
+
+    .billed-to {
+      width: 33%;
+    }
+
+    .invoice-info {
+      width: 30%;
+    }
+
+    .date-info {
+      width: 30%;
+    }
+
+    .section-label {
+      font-weight: 600;
+      color: #1a365d;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .section-value {
+      color: #555;
+      font-size: 14px;
+    }
+
+    .date-label {
+      font-weight: 600;
+      color: #1a365d;
+      margin-top: 15px;
+      margin-bottom: 5px;
+    }
+
+    .date-label:first-child {
+      margin-top: 0;
+    }
+
+    /* Line Items Table */
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+    }
+
+    .items-table thead {
+      background: #f8f9fa;
+    }
+
+    .items-table th {
+      text-align: left;
+      padding: 12px 15px;
+      font-weight: 600;
+      color: #1a365d;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid #3182ce;
+    }
+
+    .items-table th:nth-child(2),
+    .items-table th:nth-child(3),
+    .items-table th:nth-child(4),
+    .items-table th:nth-child(5) {
+      text-align: center;
+    }
+
+    .items-table th:last-child {
+      text-align: right;
+    }
+
+    .items-table td {
+      padding: 15px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #555;
+    }
+
+    .items-table td:nth-child(2),
+    .items-table td:nth-child(3),
+    .items-table td:nth-child(4) {
+      text-align: center;
+    }
+
+    .items-table td:last-child {
+      text-align: right;
+    }
+
+    /* Totals Section */
+    .totals-section {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 40px;
+    }
+
+    .totals-table {
+      width: 300px;
+    }
+
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .totals-row.amount-due {
+      border-bottom: none;
+      border-top: 2px solid #1a365d;
+      margin-top: 5px;
+      padding-top: 15px;
+    }
+
+    .totals-label {
+      font-weight: 600;
+      color: #555;
+    }
+
+    .totals-row.amount-due .totals-label,
+    .totals-row.amount-due .totals-value {
+      font-weight: 700;
+      color: #1a365d;
+      font-size: 16px;
+    }
+
+    .totals-value {
+      color: #333;
+    }
+
+    /* Pay Now Button */
+    .payment-section {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 30px;
+    }
+
+    .pay-now-btn {
+      display: inline-block;
+      background: #2b6cb0;
+      color: #fff;
+      padding: 14px 40px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 16px;
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    .pay-now-btn:hover {
+      background: #1a365d;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: 60px;
+      padding-top: 20px;
+      border-top: 1px solid #e2e8f0;
+      text-align: center;
+      color: #888;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-title">INVOICE</div>
+    </div>
+
+    <!-- Company Section -->
+    <div class="company-section">
+      <div class="logo-section">
+        <img src="{{logoBase64}}" alt="Safe Harbor Law Firm" class="logo">
+      </div>
+      <div class="company-details">
+        <div class="company-name">Safe Harbor Law Firm</div>
+        <div>+12393173116</div>
+        <div>4500 Executive Drive Suite 100</div>
+        <div>Naples, Florida</div>
+        <div>34119</div>
+        <div>US</div>
+        <div><a href="https://safeharborlawfirm.com/" class="company-website">https://safeharborlawfirm.com/</a></div>
+      </div>
+    </div>
+
+    <!-- Billing Section -->
+    <div class="billing-section">
+      <div class="billed-to">
+        <div class="section-label">Billed to</div>
+        <div class="section-value">{{billedTo}}</div>
+      </div>
+      <div class="invoice-info">
+        <div class="section-label">Invoice Number</div>
+        <div class="section-value">{{invoiceNumber}}</div>
+      </div>
+      <div class="date-info">
+        <div class="section-label">Issue Date</div>
+        <div class="section-value">{{issueDate}}</div>
+        <div class="date-label">Due Date</div>
+        <div class="section-value">{{dueDate}}</div>
+      </div>
+    </div>
+
+    <!-- Line Items -->
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th>ITEM NAME</th>
+          <th>PRICE</th>
+          <th>QUANTITY</th>
+          <th>TAX</th>
+          <th>SUBTOTAL</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#lineItems}}
+        <tr>
+          <td>{{name}}</td>
+          <td>{{price}}</td>
+          <td>{{quantity}}</td>
+          <td>{{tax}}</td>
+          <td>{{subtotal}}</td>
+        </tr>
+        {{/lineItems}}
+      </tbody>
+    </table>
+
+    <!-- Totals -->
+    <div class="totals-section">
+      <div class="totals-table">
+        <div class="totals-row">
+          <span class="totals-label">Subtotal</span>
+          <span class="totals-value">{{subtotal}}</span>
+        </div>
+        <div class="totals-row amount-due">
+          <span class="totals-label">Amount Due (USD)</span>
+          <span class="totals-value">{{amountDue}}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pay Now Button -->
+    <div class="payment-section">
+      <a href="{{paymentLink}}" class="pay-now-btn">PAY NOW</a>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p>Thank you for your business!</p>
+      <p>Please make all payments payable to Safe Harbor Law Firm</p>
+    </div>
+  </div>
+</body>
+</html>

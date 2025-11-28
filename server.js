@@ -1984,6 +1984,284 @@ app.post('/webhooks/ghl/custom-object-deleted', async (req, res) => {
   }
 });
 
+// Invoice Viewer Page - Public page for viewing and paying invoices
+app.get('/invoice/:invoiceNumber', async (req, res) => {
+  try {
+    const { invoiceNumber } = req.params;
+    console.log('=== INVOICE VIEWER REQUEST ===');
+    console.log('Invoice Number:', invoiceNumber);
+
+    const invoiceService = require('./services/invoiceService');
+    const { formatCurrency, formatDate } = require('./services/invoicePdfService');
+
+    // Get invoice from Supabase by invoice number
+    const invoiceResult = await invoiceService.getInvoiceByInvoiceNumber(invoiceNumber);
+
+    if (!invoiceResult.success || !invoiceResult.data) {
+      return res.status(404).send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Invoice Not Found</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+            .container { max-width: 500px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            h1 { color: #1a365d; }
+            p { color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>Invoice Not Found</h1>
+            <p>The invoice you're looking for could not be found.</p>
+            <p>Please check the invoice number and try again.</p>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+
+    const invoice = invoiceResult.data;
+    const isPaid = invoice.status === 'paid';
+
+    // Parse service items
+    const serviceItems = invoice.service_items || [];
+    const lineItemsHTML = serviceItems.map(item => `
+      <tr>
+        <td style="padding: 12px 15px; border-bottom: 1px solid #e2e8f0;">${item.name || '-'}</td>
+        <td style="padding: 12px 15px; border-bottom: 1px solid #e2e8f0; text-align: center;">${formatCurrency(item.price || 0)}</td>
+        <td style="padding: 12px 15px; border-bottom: 1px solid #e2e8f0; text-align: center;">${item.quantity || 1}</td>
+        <td style="padding: 12px 15px; border-bottom: 1px solid #e2e8f0; text-align: right;">${formatCurrency((item.price || 0) * (item.quantity || 1))}</td>
+      </tr>
+    `).join('');
+
+    const LOGO_URL = 'https://storage.googleapis.com/msgsndr/afYLuZPi37CZR1IpJlfn/media/68f107369d906785d9458314.png';
+
+    const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invoice ${invoice.invoice_number} - Safe Harbor Law Firm</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; color: #333; background: #e8f4fc; min-height: 100vh; padding: 20px; }
+    .invoice-container { max-width: 800px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 20px rgba(0,0,0,0.1); padding: 40px 50px; }
+    .header { border-bottom: 3px solid #1a365d; padding-bottom: 10px; margin-bottom: 30px; }
+    .header-title { text-align: right; font-size: 36px; font-weight: bold; color: #1a365d; letter-spacing: 2px; }
+    .company-section { display: flex; justify-content: space-between; margin-bottom: 40px; flex-wrap: wrap; }
+    .logo-section { width: 45%; min-width: 250px; }
+    .logo { max-width: 280px; height: auto; }
+    .company-details { width: 50%; text-align: right; font-size: 13px; line-height: 1.6; color: #444; min-width: 200px; }
+    .company-name { font-weight: 600; color: #1a365d; }
+    .company-website { color: #2b6cb0; text-decoration: none; }
+    .billing-section { display: flex; justify-content: space-between; margin-bottom: 40px; flex-wrap: wrap; gap: 20px; }
+    .billed-to, .invoice-info, .date-info { min-width: 150px; }
+    .section-label { font-weight: 600; color: #1a365d; margin-bottom: 8px; font-size: 14px; }
+    .section-value { color: #555; font-size: 14px; }
+    .date-label { font-weight: 600; color: #1a365d; margin-top: 15px; margin-bottom: 5px; }
+    .date-label:first-child { margin-top: 0; }
+    .items-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+    .items-table thead { background: #f8f9fa; }
+    .items-table th { text-align: left; padding: 12px 15px; font-weight: 600; color: #1a365d; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #3182ce; }
+    .items-table th:nth-child(2), .items-table th:nth-child(3) { text-align: center; }
+    .items-table th:last-child { text-align: right; }
+    .totals-section { display: flex; justify-content: ${isPaid ? 'space-between' : 'flex-end'}; align-items: flex-end; margin-bottom: 30px; flex-wrap: wrap; gap: 20px; }
+    .totals-table { width: 280px; }
+    .totals-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
+    .totals-row.amount-due { border-bottom: none; border-top: 2px solid #1a365d; margin-top: 5px; padding-top: 12px; }
+    .totals-label { font-weight: 600; color: #555; }
+    .totals-row.amount-due .totals-label, .totals-row.amount-due .totals-value { font-weight: 700; color: #1a365d; font-size: 18px; }
+    .totals-value { color: #333; }
+    .paid-badge { display: inline-block; background: #48bb78; color: #fff; padding: 12px 30px; font-weight: 700; font-size: 18px; border-radius: 6px; text-transform: uppercase; letter-spacing: 2px; }
+    .action-buttons { display: flex; gap: 15px; justify-content: center; margin-top: 40px; flex-wrap: wrap; }
+    .btn { display: inline-block; padding: 14px 30px; font-size: 16px; font-weight: bold; text-decoration: none; border-radius: 6px; cursor: pointer; border: none; transition: all 0.2s; }
+    .btn-pay { background: #e07c5a; color: #fff; }
+    .btn-pay:hover { background: #c9684a; }
+    .btn-download { background: #1a365d; color: #fff; }
+    .btn-download:hover { background: #2c5282; }
+    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; color: #888; font-size: 12px; }
+    @media (max-width: 600px) {
+      .invoice-container { padding: 20px; }
+      .company-section, .billing-section { flex-direction: column; }
+      .logo-section, .company-details { width: 100%; text-align: center; }
+      .company-details { margin-top: 20px; text-align: center; }
+      .header-title { font-size: 28px; }
+      .totals-section { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-container">
+    <div class="header">
+      <div class="header-title">INVOICE</div>
+    </div>
+
+    <div class="company-section">
+      <div class="logo-section">
+        <img src="${LOGO_URL}" alt="Safe Harbor Law Firm" class="logo">
+      </div>
+      <div class="company-details">
+        <div class="company-name">Safe Harbor Law Firm</div>
+        <div>+12393173116</div>
+        <div>4500 Executive Drive Suite 100</div>
+        <div>Naples, Florida</div>
+        <div>34119</div>
+        <div>US</div>
+        <div><a href="https://safeharborlawfirm.com/" class="company-website">https://safeharborlawfirm.com/</a></div>
+      </div>
+    </div>
+
+    <div class="billing-section">
+      <div class="billed-to">
+        <div class="section-label">Billed to</div>
+        <div class="section-value">${invoice.primary_contact_name || '-'}</div>
+      </div>
+      <div class="invoice-info">
+        <div class="section-label">Invoice Number</div>
+        <div class="section-value">${invoice.invoice_number || '-'}</div>
+      </div>
+      <div class="date-info">
+        <div class="section-label">Issue Date</div>
+        <div class="section-value">${formatDate(invoice.invoice_date)}</div>
+        <div class="date-label">Due Date</div>
+        <div class="section-value">${formatDate(invoice.due_date)}</div>
+      </div>
+    </div>
+
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th>ITEM NAME</th>
+          <th>PRICE</th>
+          <th>QUANTITY</th>
+          <th>SUBTOTAL</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${lineItemsHTML}
+      </tbody>
+    </table>
+
+    <div class="totals-section">
+      ${isPaid ? '<div class="paid-badge">PAID</div>' : ''}
+      <div class="totals-table">
+        <div class="totals-row">
+          <span class="totals-label">Subtotal</span>
+          <span class="totals-value">${formatCurrency(invoice.amount_due)}</span>
+        </div>
+        <div class="totals-row amount-due">
+          <span class="totals-label">${isPaid ? 'Amount Paid' : 'Amount Due'} (USD)</span>
+          <span class="totals-value">${formatCurrency(invoice.amount_due)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="action-buttons">
+      ${!isPaid && invoice.payment_url ? `<a href="${invoice.payment_url}" class="btn btn-pay">Pay Now</a>` : ''}
+      <a href="/invoice/${invoice.invoice_number}/download" class="btn btn-download">Download PDF</a>
+    </div>
+
+    <div class="footer">
+      <p>${isPaid ? 'Thank you for your payment!' : 'Thank you for your business!'}</p>
+      <p>Safe Harbor Law Firm</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    res.send(html);
+
+  } catch (error) {
+    console.error('Error rendering invoice page:', error);
+    res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Error</title>
+        <style>
+          body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+          .container { max-width: 500px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; }
+          h1 { color: #c53030; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>Error</h1>
+          <p>An error occurred while loading the invoice. Please try again later.</p>
+        </div>
+      </body>
+      </html>
+    `);
+  }
+});
+
+// Invoice PDF Download endpoint
+app.get('/invoice/:invoiceNumber/download', async (req, res) => {
+  try {
+    const { invoiceNumber } = req.params;
+    console.log('=== INVOICE PDF DOWNLOAD REQUEST ===');
+    console.log('Invoice Number:', invoiceNumber);
+
+    const invoiceService = require('./services/invoiceService');
+    const { generateInvoicePDF, generatePaidInvoicePDF } = require('./services/invoicePdfService');
+
+    // Get invoice from Supabase
+    const invoiceResult = await invoiceService.getInvoiceByInvoiceNumber(invoiceNumber);
+
+    if (!invoiceResult.success || !invoiceResult.data) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const invoice = invoiceResult.data;
+    const isPaid = invoice.status === 'paid';
+
+    // Prepare invoice data for PDF generation
+    const invoiceData = {
+      billedTo: invoice.primary_contact_name,
+      invoiceNumber: invoice.invoice_number,
+      issueDate: invoice.invoice_date,
+      dueDate: invoice.due_date,
+      lineItems: (invoice.service_items || []).map(item => ({
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        tax: '-',
+        subtotal: (item.price || 0) * (item.quantity || 1)
+      })),
+      subtotal: parseFloat(invoice.amount_due),
+      amountDue: parseFloat(invoice.amount_due),
+      paymentLink: invoice.payment_url,
+      paymentsReceived: isPaid ? parseFloat(invoice.amount_due) : 0
+    };
+
+    // Generate appropriate PDF
+    let pdfBuffer;
+    if (isPaid) {
+      pdfBuffer = await generatePaidInvoicePDF(invoiceData);
+    } else {
+      pdfBuffer = await generateInvoicePDF(invoiceData);
+    }
+
+    // Convert to proper Buffer if needed
+    const properBuffer = Buffer.from(pdfBuffer);
+
+    // Set headers for PDF download
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Invoice-${invoiceNumber}.pdf"`);
+    res.setHeader('Content-Length', properBuffer.length);
+
+    res.send(properBuffer);
+
+  } catch (error) {
+    console.error('Error generating invoice PDF:', error);
+    res.status(500).json({ error: 'Failed to generate PDF' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

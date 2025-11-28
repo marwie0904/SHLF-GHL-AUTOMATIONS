@@ -173,6 +173,51 @@ async function getInvoiceByGHLId(ghlInvoiceId) {
 }
 
 /**
+ * Get invoice by invoice number
+ * @param {string} invoiceNumber - Invoice number (e.g., INV-20251128-A84C)
+ * @returns {Promise<Object>} Invoice record
+ */
+async function getInvoiceByInvoiceNumber(invoiceNumber) {
+  try {
+    console.log('=== Fetching Invoice by Invoice Number ===');
+    console.log('Invoice Number:', invoiceNumber);
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('invoice_number', invoiceNumber)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No rows returned
+        console.log('ℹ️ No invoice found with Invoice Number:', invoiceNumber);
+        return {
+          success: true,
+          data: null,
+        };
+      }
+      console.error('❌ Error fetching invoice:', error);
+      throw error;
+    }
+
+    console.log('✅ Invoice found');
+
+    return {
+      success: true,
+      data,
+    };
+
+  } catch (error) {
+    console.error('❌ Error in getInvoiceByInvoiceNumber:', error.message);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+}
+
+/**
  * Get invoice by Confido invoice ID
  * @param {string} confidoInvoiceId - Confido invoice ID
  * @returns {Promise<Object>} Invoice record
@@ -483,6 +528,7 @@ module.exports = {
   saveInvoiceToSupabase,
   updateInvoicePaymentStatus,
   getInvoiceByGHLId,
+  getInvoiceByInvoiceNumber,
   getInvoiceByconfidoId,
   savePaymentToSupabase,
   getInvoicesByOpportunity,
