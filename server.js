@@ -1810,8 +1810,33 @@ app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
       });
 
     } else {
-      // PAYMENT LINK EXISTS - Update Supabase record
-      console.log('📝 Payment link exists - Updating Supabase record...');
+      // PAYMENT LINK EXISTS - Check if update is needed
+      console.log('📝 Payment link exists - Checking if update needed...');
+
+      // Get current values from GHL record to compare
+      const currentSubtotal = invoiceRecord.properties.subtotal?.value || invoiceRecord.properties.subtotal || 0;
+      const currentTotal = invoiceRecord.properties.total?.value || invoiceRecord.properties.total || 0;
+      const currentStatus = invoiceRecord.properties.status || [];
+
+      console.log('Current GHL values:', { subtotal: currentSubtotal, total: currentTotal, status: currentStatus });
+      console.log('Calculated values:', { subtotal: total, total: total });
+
+      // Check if GHL update is needed (compare values)
+      const subtotal = total;
+      const needsGHLUpdate = currentSubtotal !== subtotal || currentTotal !== total;
+
+      if (!needsGHLUpdate) {
+        console.log('ℹ️ No GHL update needed - values already match');
+        return res.json({
+          success: true,
+          message: 'Invoice already up to date - no changes needed',
+          invoiceId: objectData.recordId,
+          opportunityId: opportunity.id,
+          total: total,
+          existingPaymentLink: existingPaymentLink,
+          skippedUpdate: true
+        });
+      }
 
       // Update Supabase with new values
       await invoiceService.updateInvoiceInSupabase(objectData.recordId, {
@@ -1823,7 +1848,6 @@ app.post('/webhooks/ghl/custom-object-updated', async (req, res) => {
       console.log('✅ Invoice updated in Supabase');
 
       // Update GHL custom object with new totals
-      const subtotal = total;
       try {
         console.log('Updating GHL custom object with new totals...');
         await ghlService.updateCustomObject(
