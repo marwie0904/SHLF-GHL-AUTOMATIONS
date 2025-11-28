@@ -1,6 +1,6 @@
 const axios = require('axios');
 const { searchOpportunitiesByContact } = require('./ghlOpportunityService');
-const { shouldSendConfirmationEmail, sendMeetingConfirmationEmail } = require('./appointmentEmailService');
+const { shouldSendConfirmationEmail, sendMeetingConfirmationEmail, shouldSendDiscoveryCallEmail, sendProbateDiscoveryCallEmail } = require('./appointmentEmailService');
 const { getContact } = require('./ghlService');
 
 /**
@@ -469,8 +469,12 @@ async function processAppointmentCreated(webhookData) {
 
   // Step 6: Send confirmation email for specific meeting types
   let emailResult = null;
-  if (meetingData?.meetingType && shouldSendConfirmationEmail(meetingData.meetingType)) {
-    console.log(`📧 Meeting type "${meetingData.meetingType}" requires confirmation email`);
+  const requiresConfirmationEmail = meetingData?.meetingType && shouldSendConfirmationEmail(meetingData.meetingType);
+  const requiresDiscoveryCallEmail = meetingData?.meetingType && shouldSendDiscoveryCallEmail(meetingData.meetingType);
+
+  if (requiresConfirmationEmail || requiresDiscoveryCallEmail) {
+    const emailType = requiresConfirmationEmail ? 'confirmation' : 'discovery call';
+    console.log(`📧 Meeting type "${meetingData.meetingType}" requires ${emailType} email`);
 
     // Fetch full appointment details to get start time
     const appointmentDetails = await getAppointment(appointmentId);
@@ -484,10 +488,11 @@ async function processAppointmentCreated(webhookData) {
     // Get the contact ID from the appointment
     const appointmentContactId = appointment?.contactId || appointment?.contact_id || contactId;
 
-    // Fetch contact to get their email and first name
+    // Fetch contact to get their email, first name, and phone
     let recipientEmail = contactEmail;
     let recipientName = contactName;
     let recipientFirstName = null;
+    let recipientPhone = contactPhone;
 
     if (appointmentContactId) {
       try {
@@ -503,6 +508,10 @@ async function processAppointmentCreated(webhookData) {
           recipientFirstName = contact.firstName;
           console.log(`✅ Found contact first name: ${recipientFirstName}`);
         }
+        if (contact?.phone) {
+          recipientPhone = contact.phone;
+          console.log(`✅ Found contact phone: ${recipientPhone}`);
+        }
         if (contact?.name || contact?.firstName) {
           recipientName = contact.name || `${contact.firstName} ${contact.lastName || ''}`.trim();
         }
@@ -512,15 +521,26 @@ async function processAppointmentCreated(webhookData) {
     }
 
     if (!recipientEmail) {
-      console.log('⚠️ No email found for contact, skipping confirmation email');
+      console.log('⚠️ No email found for contact, skipping email');
       emailResult = { success: false, reason: 'No email address found' };
-    } else {
+    } else if (requiresConfirmationEmail) {
+      // Send meeting confirmation email (Initial, Vision, Standalone)
       emailResult = await sendMeetingConfirmationEmail({
         contactEmail: recipientEmail,
         contactName: recipientName,
         contactFirstName: recipientFirstName,
         startTime: appointmentStartTime,
         meetingLocation: meetingData.meeting,
+        meetingType: meetingData.meetingType
+      });
+    } else if (requiresDiscoveryCallEmail) {
+      // Send discovery call email (Probate Discovery Call)
+      emailResult = await sendProbateDiscoveryCallEmail({
+        contactEmail: recipientEmail,
+        contactName: recipientName,
+        contactFirstName: recipientFirstName,
+        contactPhone: recipientPhone,
+        startTime: appointmentStartTime,
         meetingType: meetingData.meetingType
       });
     }

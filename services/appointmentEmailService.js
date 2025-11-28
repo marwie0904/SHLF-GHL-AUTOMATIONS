@@ -12,11 +12,16 @@ const MAKE_WEBHOOK_URL = process.env.MAKE_APPOINTMENT_EMAIL_WEBHOOK;
 // Logo URL - hosted on GHL
 const LOGO_URL = 'https://storage.googleapis.com/msgsndr/afYLuZPi37CZR1IpJlfn/media/68f107369d906785d9458314.png';
 
-// Meeting types that trigger confirmation emails
+// Meeting types that trigger confirmation emails (in-person meetings)
 const EMAIL_TRIGGER_MEETING_TYPES = [
   'Initial Meeting',
   'Vision Meeting',
   'Standalone Meeting'
+];
+
+// Meeting types that trigger discovery call emails (phone calls)
+const DISCOVERY_CALL_MEETING_TYPES = [
+  'Probate Discovery Call'
 ];
 
 // JotForm link for Personal and Financial Information form
@@ -27,6 +32,10 @@ const WORKSHOP_LINK = 'https://safeharborlaw.mykajabi.com/offers/4G46XzDJ/checko
 
 // Brochure PDF download link
 const BROCHURE_LINK = 'https://storage.googleapis.com/msgsndr/afYLuZPi37CZR1IpJlfn/media/6929c210850cc4f85b2e7a03.pdf';
+
+// Estate Questionnaire link for Probate Discovery Calls
+// TODO: Replace with actual questionnaire link
+const ESTATE_QUESTIONNAIRE_LINK = '[ESTATE_QUESTIONNAIRE_LINK]';
 
 // Office addresses by meeting location
 // TODO: Replace placeholders with actual addresses
@@ -46,13 +55,23 @@ const MEETING_LOCATIONS = {
 };
 
 /**
- * Checks if the meeting type requires a confirmation email
+ * Checks if the meeting type requires a confirmation email (in-person meetings)
  * @param {string} meetingType - The meeting type
  * @returns {boolean} True if email should be sent
  */
 function shouldSendConfirmationEmail(meetingType) {
   if (!meetingType) return false;
   return EMAIL_TRIGGER_MEETING_TYPES.includes(meetingType);
+}
+
+/**
+ * Checks if the meeting type requires a discovery call email (phone calls)
+ * @param {string} meetingType - The meeting type
+ * @returns {boolean} True if discovery call email should be sent
+ */
+function shouldSendDiscoveryCallEmail(meetingType) {
+  if (!meetingType) return false;
+  return DISCOVERY_CALL_MEETING_TYPES.includes(meetingType);
 }
 
 /**
@@ -176,6 +195,150 @@ function generateMeetingConfirmationHTML(data) {
 }
 
 /**
+ * Generates the HTML email body for Probate Discovery Call confirmation
+ * @param {Object} data - Email data
+ * @param {string} data.firstName - Contact first name
+ * @param {string} data.dateTime - Formatted date and time
+ * @param {string} data.phoneNumber - Contact phone number
+ * @returns {string} HTML email body
+ */
+function generateProbateDiscoveryCallHTML(data) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #e8f4fc;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #e8f4fc; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px;">
+          <tr>
+            <td align="center" style="padding: 40px 40px 20px 40px;">
+              <img src="${LOGO_URL}" alt="Safe Harbor Law Firm" width="400" style="max-width: 100%;">
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 40px;">
+              <h2 style="color: #1a365d; margin: 0 0 20px 0; font-size: 24px;">Discovery Call Confirmation</h2>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 10px 0;">
+                Hi ${data.firstName},
+              </p>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                Your Probate Discovery Call has been scheduled for <strong>${data.dateTime}</strong>.
+              </p>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                We will call you at the number you provided: <strong>${data.phoneNumber}</strong>
+              </p>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0; font-style: italic;">
+                Please allow a brief 5–10 minute delay in case we are finishing another call or assisting another client.
+              </p>
+
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 10px 0;">
+                <strong>Before your appointment, please submit the following:</strong>
+              </p>
+
+              <ul style="color: #333; font-size: 16px; line-height: 1.8; margin: 0 0 20px 0; padding-left: 20px;">
+                <li style="margin-bottom: 10px;">
+                  <strong>Estate Questionnaire</strong> – This helps our paralegal understand your situation and gain a full picture ahead of time.
+                  <br>
+                  <a href="${ESTATE_QUESTIONNAIRE_LINK}" style="color: #2b6cb0; text-decoration: underline;">Complete Estate Questionnaire</a>
+                </li>
+                <li style="margin-bottom: 10px;">
+                  Decedent's will (if available)
+                </li>
+                <li style="margin-bottom: 10px;">
+                  Decedent's Death certificate (if available)
+                </li>
+              </ul>
+
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 20px 0;">
+                If you have any questions, please respond to this email or give us a call/text at <strong>239-317-3116</strong>.
+              </p>
+
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 20px 0 0 0;">
+                Regards,<br><strong>Safe Harbor Law Firm</strong>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * Sends a Probate Discovery Call confirmation email via Make.com webhook
+ * @param {Object} appointmentData - Appointment data
+ * @param {string} appointmentData.contactEmail - Recipient email address
+ * @param {string} appointmentData.contactName - Contact full name
+ * @param {string} appointmentData.contactFirstName - Contact first name
+ * @param {string} appointmentData.contactPhone - Contact phone number
+ * @param {string} appointmentData.startTime - Appointment start time (ISO string)
+ * @param {string} appointmentData.meetingType - Meeting type
+ * @returns {Promise<Object>} Webhook response
+ */
+async function sendProbateDiscoveryCallEmail(appointmentData) {
+  if (!MAKE_WEBHOOK_URL) {
+    console.log('⚠️ MAKE_APPOINTMENT_EMAIL_WEBHOOK not configured, skipping email');
+    return { success: false, reason: 'Webhook not configured' };
+  }
+
+  const { contactEmail, contactName, contactFirstName, contactPhone, startTime, meetingType } = appointmentData;
+
+  if (!contactEmail) {
+    console.log('⚠️ No contact email provided, skipping discovery call email');
+    return { success: false, reason: 'No email address' };
+  }
+
+  console.log('=== Sending Probate Discovery Call Email ===');
+  console.log('To:', contactEmail);
+  console.log('First Name:', contactFirstName);
+  console.log('Phone:', contactPhone);
+  console.log('Meeting Type:', meetingType);
+  console.log('Time:', startTime);
+
+  // Format date/time
+  const formattedDateTime = formatAppointmentDateTime(startTime);
+
+  // Prepare email data
+  const emailData = {
+    firstName: contactFirstName || contactName || 'Valued Client',
+    dateTime: formattedDateTime,
+    phoneNumber: contactPhone || '[Phone Number]'
+  };
+
+  // Generate HTML body
+  const htmlBody = generateProbateDiscoveryCallHTML(emailData);
+
+  // Prepare webhook payload
+  const payload = {
+    to: contactEmail,
+    subject: 'Discovery Call Confirmation: Safe Harbor Law Firm',
+    htmlBody: htmlBody,
+    type: 'probate_discovery_call'
+  };
+
+  try {
+    const response = await axios.post(MAKE_WEBHOOK_URL, payload, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    console.log('✅ Probate Discovery Call email sent successfully');
+    return { success: true, response: response.data };
+
+  } catch (error) {
+    console.error('❌ Failed to send Probate Discovery Call email:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Sends a meeting confirmation email via Make.com webhook
  * @param {Object} appointmentData - Appointment data
  * @param {string} appointmentData.contactEmail - Recipient email address
@@ -248,10 +411,14 @@ async function sendMeetingConfirmationEmail(appointmentData) {
 
 module.exports = {
   shouldSendConfirmationEmail,
+  shouldSendDiscoveryCallEmail,
   sendMeetingConfirmationEmail,
+  sendProbateDiscoveryCallEmail,
   formatAppointmentDateTime,
   getLocationText,
   generateMeetingConfirmationHTML,
+  generateProbateDiscoveryCallHTML,
   EMAIL_TRIGGER_MEETING_TYPES,
+  DISCOVERY_CALL_MEETING_TYPES,
   MEETING_LOCATIONS
 };
