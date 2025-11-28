@@ -1,6 +1,6 @@
 const axios = require('axios');
 const { searchOpportunitiesByContact } = require('./ghlOpportunityService');
-const { shouldSendConfirmationEmail, sendMeetingConfirmationEmail, shouldSendDiscoveryCallEmail, sendProbateDiscoveryCallEmail, shouldSendTrustAdminEmail, sendTrustAdminMeetingEmail } = require('./appointmentEmailService');
+const { shouldSendConfirmationEmail, sendMeetingConfirmationEmail, shouldSendDiscoveryCallEmail, sendProbateDiscoveryCallEmail, shouldSendTrustAdminEmail, sendTrustAdminMeetingEmail, shouldSendGeneralDiscoveryCallEmail, sendGeneralDiscoveryCallEmail } = require('./appointmentEmailService');
 const { getContact } = require('./ghlService');
 
 /**
@@ -472,11 +472,13 @@ async function processAppointmentCreated(webhookData) {
   const requiresConfirmationEmail = meetingData?.meetingType && shouldSendConfirmationEmail(meetingData.meetingType);
   const requiresDiscoveryCallEmail = meetingData?.meetingType && shouldSendDiscoveryCallEmail(meetingData.meetingType);
   const requiresTrustAdminEmail = meetingData?.meetingType && shouldSendTrustAdminEmail(meetingData.meetingType);
+  const requiresGeneralDiscoveryCallEmail = meetingData?.meetingType && shouldSendGeneralDiscoveryCallEmail(meetingData.meetingType);
 
-  if (requiresConfirmationEmail || requiresDiscoveryCallEmail || requiresTrustAdminEmail) {
+  if (requiresConfirmationEmail || requiresDiscoveryCallEmail || requiresTrustAdminEmail || requiresGeneralDiscoveryCallEmail) {
     let emailType = 'confirmation';
-    if (requiresDiscoveryCallEmail) emailType = 'discovery call';
+    if (requiresDiscoveryCallEmail) emailType = 'probate discovery call';
     if (requiresTrustAdminEmail) emailType = 'trust admin';
+    if (requiresGeneralDiscoveryCallEmail) emailType = 'general discovery call';
     console.log(`📧 Meeting type "${meetingData.meetingType}" requires ${emailType} email`);
 
     // Fetch full appointment details to get start time
@@ -554,6 +556,16 @@ async function processAppointmentCreated(webhookData) {
         contactFirstName: recipientFirstName,
         startTime: appointmentStartTime,
         meetingLocation: meetingData.meeting,
+        meetingType: meetingData.meetingType
+      });
+    } else if (requiresGeneralDiscoveryCallEmail) {
+      // Send general discovery call email (EP, Deed Discovery Call)
+      emailResult = await sendGeneralDiscoveryCallEmail({
+        contactEmail: recipientEmail,
+        contactName: recipientName,
+        contactFirstName: recipientFirstName,
+        contactPhone: recipientPhone,
+        startTime: appointmentStartTime,
         meetingType: meetingData.meetingType
       });
     }

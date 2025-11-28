@@ -29,6 +29,12 @@ const TRUST_ADMIN_MEETING_TYPES = [
   'Trust Admin Meeting'
 ];
 
+// Meeting types that trigger general discovery call emails (EP, Deed)
+const GENERAL_DISCOVERY_CALL_TYPES = [
+  'EP Discovery Call',
+  'Deed Discovery Call'
+];
+
 // JotForm link for Personal and Financial Information form
 const JOTFORM_LINK = 'https://form.jotform.com/252972444974066';
 
@@ -91,6 +97,16 @@ function shouldSendDiscoveryCallEmail(meetingType) {
 function shouldSendTrustAdminEmail(meetingType) {
   if (!meetingType) return false;
   return TRUST_ADMIN_MEETING_TYPES.includes(meetingType);
+}
+
+/**
+ * Checks if the meeting type requires a general discovery call email (EP, Deed)
+ * @param {string} meetingType - The meeting type
+ * @returns {boolean} True if general discovery call email should be sent
+ */
+function shouldSendGeneralDiscoveryCallEmail(meetingType) {
+  if (!meetingType) return false;
+  return GENERAL_DISCOVERY_CALL_TYPES.includes(meetingType);
 }
 
 /**
@@ -498,6 +514,133 @@ async function sendTrustAdminMeetingEmail(appointmentData) {
 }
 
 /**
+ * Generates the HTML email body for General Discovery Call (EP, Deed)
+ * @param {Object} data - Email data
+ * @param {string} data.firstName - Contact first name
+ * @param {string} data.dateTime - Formatted date and time
+ * @param {string} data.phoneNumber - Contact phone number
+ * @returns {string} HTML email body
+ */
+function generateGeneralDiscoveryCallHTML(data) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #e8f4fc;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #e8f4fc; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px;">
+          <tr>
+            <td align="center" style="padding: 40px 40px 20px 40px;">
+              <img src="${LOGO_URL}" alt="Safe Harbor Law Firm" width="400" style="max-width: 100%;">
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 40px;">
+              <h2 style="color: #1a365d; margin: 0 0 20px 0; font-size: 24px;">Discovery Call Confirmation</h2>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 10px 0;">
+                Hi ${data.firstName},
+              </p>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                Your discovery call has been scheduled for <strong>${data.dateTime}</strong>.
+              </p>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                We will call you at the phone number you provided at the time of your scheduled appointment.
+              </p>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0; font-style: italic;">
+                Please allow a 5–10 minute delay in case we are finishing another call or assisting another client.
+              </p>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                <strong>Phone number we will be calling:</strong> ${data.phoneNumber}
+              </p>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 20px 0;">
+                Please reply to this email if you need to reschedule.
+              </p>
+              <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 20px 0 0 0;">
+                Regards,<br><strong>Safe Harbor Law Firm</strong>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * Sends a General Discovery Call (EP, Deed) confirmation email via Make.com webhook
+ * @param {Object} appointmentData - Appointment data
+ * @param {string} appointmentData.contactEmail - Recipient email address
+ * @param {string} appointmentData.contactName - Contact full name
+ * @param {string} appointmentData.contactFirstName - Contact first name
+ * @param {string} appointmentData.contactPhone - Contact phone number
+ * @param {string} appointmentData.startTime - Appointment start time (ISO string)
+ * @param {string} appointmentData.meetingType - Meeting type
+ * @returns {Promise<Object>} Webhook response
+ */
+async function sendGeneralDiscoveryCallEmail(appointmentData) {
+  if (!MAKE_WEBHOOK_URL) {
+    console.log('⚠️ MAKE_APPOINTMENT_EMAIL_WEBHOOK not configured, skipping email');
+    return { success: false, reason: 'Webhook not configured' };
+  }
+
+  const { contactEmail, contactName, contactFirstName, contactPhone, startTime, meetingType } = appointmentData;
+
+  if (!contactEmail) {
+    console.log('⚠️ No contact email provided, skipping discovery call email');
+    return { success: false, reason: 'No email address' };
+  }
+
+  console.log('=== Sending General Discovery Call Email ===');
+  console.log('To:', contactEmail);
+  console.log('First Name:', contactFirstName);
+  console.log('Phone:', contactPhone);
+  console.log('Meeting Type:', meetingType);
+  console.log('Time:', startTime);
+
+  // Format date/time
+  const formattedDateTime = formatAppointmentDateTime(startTime);
+
+  // Prepare email data
+  const emailData = {
+    firstName: contactFirstName || contactName || 'Valued Client',
+    dateTime: formattedDateTime,
+    phoneNumber: contactPhone || '[Phone Number]'
+  };
+
+  // Generate HTML body
+  const htmlBody = generateGeneralDiscoveryCallHTML(emailData);
+
+  // Prepare webhook payload
+  const payload = {
+    to: contactEmail,
+    subject: 'Discovery Call Confirmation: Safe Harbor Law Firm',
+    htmlBody: htmlBody,
+    type: 'general_discovery_call'
+  };
+
+  try {
+    const response = await axios.post(MAKE_WEBHOOK_URL, payload, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    console.log('✅ General Discovery Call email sent successfully');
+    return { success: true, response: response.data };
+
+  } catch (error) {
+    console.error('❌ Failed to send General Discovery Call email:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Sends a meeting confirmation email via Make.com webhook
  * @param {Object} appointmentData - Appointment data
  * @param {string} appointmentData.contactEmail - Recipient email address
@@ -572,16 +715,20 @@ module.exports = {
   shouldSendConfirmationEmail,
   shouldSendDiscoveryCallEmail,
   shouldSendTrustAdminEmail,
+  shouldSendGeneralDiscoveryCallEmail,
   sendMeetingConfirmationEmail,
   sendProbateDiscoveryCallEmail,
   sendTrustAdminMeetingEmail,
+  sendGeneralDiscoveryCallEmail,
   formatAppointmentDateTime,
   getLocationText,
   generateMeetingConfirmationHTML,
   generateProbateDiscoveryCallHTML,
   generateTrustAdminMeetingHTML,
+  generateGeneralDiscoveryCallHTML,
   EMAIL_TRIGGER_MEETING_TYPES,
   DISCOVERY_CALL_MEETING_TYPES,
   TRUST_ADMIN_MEETING_TYPES,
+  GENERAL_DISCOVERY_CALL_TYPES,
   MEETING_LOCATIONS
 };
