@@ -1607,6 +1607,41 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
       console.error('Payment link can be retrieved from Supabase if needed');
     }
 
+    // Send invoice email to client
+    let emailSent = false;
+    const contactEmail = opportunity.contact?.email;
+    if (contactEmail) {
+      try {
+        console.log('Sending invoice email to:', contactEmail);
+        const { sendInvoiceEmail } = require('./services/invoiceEmailService');
+
+        const invoiceEmailData = {
+          billedTo: opportunity.contact?.name || opportunity.name,
+          invoiceNumber: invoiceNumber,
+          issueDate: new Date(),
+          dueDate: invoiceRecord.properties.due_date ? new Date(invoiceRecord.properties.due_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          lineItems: lineItems.map(item => ({
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity || 1,
+            tax: '-',
+            subtotal: item.price * (item.quantity || 1)
+          })),
+          subtotal: total,
+          amountDue: total,
+          paymentLink: confidoResult.paymentUrl
+        };
+
+        await sendInvoiceEmail(invoiceEmailData, contactEmail);
+        console.log('✅ Invoice email sent successfully');
+        emailSent = true;
+      } catch (emailError) {
+        console.error('Failed to send invoice email (non-blocking):', emailError.message);
+      }
+    } else {
+      console.warn('⚠️ No contact email found, skipping invoice email');
+    }
+
     res.json({
       success: true,
       message: 'Custom invoice processed successfully',
@@ -1615,6 +1650,7 @@ app.post('/webhooks/ghl/custom-object-created', async (req, res) => {
       total: total,
       lineItems: lineItems,
       missingItems: missingItems,
+      emailSent: emailSent,
       confido: {
         invoiceId: confidoResult.confidoInvoiceId,
         paymentUrl: confidoResult.paymentUrl,
