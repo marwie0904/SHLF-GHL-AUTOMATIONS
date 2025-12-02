@@ -58,14 +58,17 @@ const ESTATE_QUESTIONNAIRE_LINK = '[ESTATE_QUESTIONNAIRE_LINK]';
 const TRUST_ADMIN_QUESTIONNAIRE_LINK = '[TRUST_ADMIN_QUESTIONNAIRE_LINK]';
 
 // Office addresses by meeting location
-// TODO: Replace placeholders with actual addresses
 const MEETING_LOCATIONS = {
   'Naples': {
-    address: '[NAPLES OFFICE ADDRESS]',
+    address: '4500 Executive Drive, Suite 100, Naples, FL 34119',
+    type: 'in-person'
+  },
+  'Bonita Springs': {
+    address: '27821 Tamiami Trail, Suite 2, Bonita Springs, FL 34134',
     type: 'in-person'
   },
   'Fort Myers': {
-    address: '[FORT MYERS OFFICE ADDRESS]',
+    address: 'Summerlin Commons Blvd, Fort Myers, FL 33907',
     type: 'in-person'
   },
   'Zoom': {
