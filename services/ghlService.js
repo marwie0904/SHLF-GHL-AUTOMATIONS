@@ -555,6 +555,7 @@ async function getOpportunity(opportunityId) {
 
 module.exports = {
   createGHLContact,
+  updateGHLContact,
   createGHLOpportunity,
   getCustomFields,
   getContact,

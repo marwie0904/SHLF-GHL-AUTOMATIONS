@@ -2479,6 +2479,61 @@ app.post('/webhooks/ghl/inbound-sms', async (req, res) => {
   }
 });
 
+// Call Transcript webhook endpoint
+// Receives call transcript, summarizes via OpenRouter, saves both to GHL contact custom fields
+app.post('/webhooks/ghl/call-transcript', async (req, res) => {
+  try {
+    console.log('=== CALL TRANSCRIPT WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
+
+    // Extract contact ID and transcript from request
+    const contactId = req.body.contactId || req.body.contact_id || req.body['contact-id'];
+    const transcript = req.body.transcript || req.body.call_transcript || req.body['call-transcript'];
+
+    // Validate required fields
+    if (!contactId) {
+      console.error('Missing contactId in request');
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field: contactId'
+      });
+    }
+
+    if (!transcript) {
+      console.error('Missing transcript in request');
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field: transcript'
+      });
+    }
+
+    // Process the call transcript
+    const { processCallTranscript } = require('./services/callTranscriptService');
+    const result = await processCallTranscript(contactId, transcript);
+
+    console.log('Call transcript processed successfully');
+    console.log('Summary:', result.summary);
+
+    res.json({
+      success: true,
+      message: 'Call transcript processed and saved',
+      contactId: result.contactId,
+      transcriptLength: result.transcriptLength,
+      summaryLength: result.summaryLength,
+      summary: result.summary
+    });
+
+  } catch (error) {
+    console.error('Error processing call transcript webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing call transcript',
+      error: error.message
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
