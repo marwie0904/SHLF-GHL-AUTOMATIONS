@@ -6,6 +6,179 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Grace period in milliseconds (2 minutes)
+const STAGE_CHANGE_GRACE_PERIOD_MS = 2 * 60 * 1000;
+
+/**
+ * Record a stage change in Supabase for grace period tracking
+ * @param {Object} data - Stage change data
+ * @returns {Promise<Object>} The created record
+ */
+async function recordStageChange(data) {
+  try {
+    const { data: record, error } = await supabase
+      .from('opportunity_stage_changes')
+      .insert({
+        opportunity_id: data.opportunityId,
+        opportunity_name: data.opportunityName,
+        previous_stage: data.previousStage,
+        previous_stage_id: data.previousStageId,
+        new_stage: data.newStage,
+        new_stage_id: data.newStageId,
+        task_ids: data.taskIds || []
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error recording stage change:', error);
+      throw error;
+    }
+
+    console.log('Stage change recorded:', record.id);
+    return record;
+  } catch (error) {
+    console.error('Error in recordStageChange:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get recent stage changes within grace period for an opportunity
+ * @param {string} opportunityId - GHL opportunity ID
+ * @returns {Promise<Array>} Array of recent stage changes
+ */
+async function getRecentStageChanges(opportunityId) {
+  try {
+    const gracePeriodStart = new Date(Date.now() - STAGE_CHANGE_GRACE_PERIOD_MS).toISOString();
+
+    const { data, error } = await supabase
+      .from('opportunity_stage_changes')
+      .select('*')
+      .eq('opportunity_id', opportunityId)
+      .gte('created_at', gracePeriodStart)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching recent stage changes:', error);
+      throw error;
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getRecentStageChanges:', error);
+    throw error;
+  }
+}
+
+/**
+ * Delete a task from GHL
+ * @param {string} contactId - GHL contact ID
+ * @param {string} taskId - GHL task ID
+ * @returns {Promise<boolean>} True if deleted successfully
+ */
+async function deleteGHLTask(contactId, taskId) {
+  const apiKey = process.env.GHL_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  try {
+    await axios.delete(
+      `https://services.leadconnectorhq.com/contacts/${contactId}/tasks/${taskId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    console.log(`GHL Task ${taskId} deleted successfully`);
+    return true;
+  } catch (error) {
+    console.error('Error deleting GHL task:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
+ * Delete tasks from previous stage change within grace period
+ * @param {string} opportunityId - GHL opportunity ID
+ * @param {string} contactId - GHL contact ID
+ * @returns {Promise<Object>} Result with count of deleted tasks
+ */
+async function deletePreviousStageTasks(opportunityId, contactId) {
+  try {
+    const recentChanges = await getRecentStageChanges(opportunityId);
+
+    if (recentChanges.length === 0) {
+      console.log('No recent stage changes within grace period');
+      return { deletedCount: 0, taskIds: [] };
+    }
+
+    // Get the most recent stage change (excluding the current one we're about to create)
+    const previousChange = recentChanges[0];
+    const taskIds = previousChange.task_ids || [];
+
+    if (taskIds.length === 0) {
+      console.log('No tasks to delete from previous stage change');
+      return { deletedCount: 0, taskIds: [] };
+    }
+
+    console.log(`Found ${taskIds.length} tasks to delete from previous stage change`);
+
+    let deletedCount = 0;
+    for (const taskId of taskIds) {
+      try {
+        await deleteGHLTask(contactId, taskId);
+        deletedCount++;
+      } catch (deleteError) {
+        console.error(`Failed to delete task ${taskId}:`, deleteError.message);
+        // Continue with other tasks even if one fails
+      }
+    }
+
+    // Remove the old stage change record since we've handled it
+    await supabase
+      .from('opportunity_stage_changes')
+      .delete()
+      .eq('id', previousChange.id);
+
+    console.log(`Deleted ${deletedCount} out of ${taskIds.length} tasks from previous stage`);
+    return { deletedCount, taskIds };
+  } catch (error) {
+    console.error('Error in deletePreviousStageTasks:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update the task_ids for a stage change record
+ * @param {string} recordId - Stage change record ID
+ * @param {Array} taskIds - Array of task IDs to store
+ * @returns {Promise<void>}
+ */
+async function updateStageChangeTaskIds(recordId, taskIds) {
+  try {
+    const { error } = await supabase
+      .from('opportunity_stage_changes')
+      .update({ task_ids: taskIds })
+      .eq('id', recordId);
+
+    if (error) {
+      console.error('Error updating stage change task IDs:', error);
+      throw error;
+    }
+
+    console.log(`Updated stage change ${recordId} with ${taskIds.length} task IDs`);
+  } catch (error) {
+    console.error('Error in updateStageChangeTaskIds:', error);
+    throw error;
+  }
+}
+
 /**
  * Get tasks for a specific opportunity stage from Supabase
  * @param {string} stageName - The opportunity stage name
@@ -117,12 +290,14 @@ function calculateDueDate(taskData) {
 
 /**
  * Process opportunity stage change and create tasks
+ * Implements 2-minute grace period: if stage changes again within 2 minutes,
+ * tasks from the previous stage change are deleted.
  * @param {Object} webhookData - Webhook data from GHL
  * @returns {Promise<Object>} Processing result
  */
 async function processOpportunityStageChange(webhookData) {
   try {
-    const { opportunityId, stageName, contactId } = webhookData;
+    const { opportunityId, stageName, stageId, contactId, pipelineId, previousStageName, previousStageId, opportunityName } = webhookData;
 
     if (!opportunityId || !stageName) {
       throw new Error('Missing required fields: opportunityId or stageName');
@@ -130,28 +305,72 @@ async function processOpportunityStageChange(webhookData) {
 
     console.log(`Processing opportunity ${opportunityId} - Stage: ${stageName}`);
 
-    // Get tasks for this stage from Supabase
+    // Step 1: Check for recent stage changes within grace period and delete their tasks
+    let deletionResult = { deletedCount: 0, taskIds: [] };
+    if (contactId) {
+      console.log('Checking for recent stage changes within 2-minute grace period...');
+      deletionResult = await deletePreviousStageTasks(opportunityId, contactId);
+      if (deletionResult.deletedCount > 0) {
+        console.log(`Grace period cleanup: Deleted ${deletionResult.deletedCount} tasks from previous stage change`);
+      }
+    }
+
+    // Step 2: Get tasks for this stage from Supabase
     const tasks = await getTasksForStage(stageName);
 
     if (tasks.length === 0) {
       console.log(`No tasks configured for stage: ${stageName}`);
+      // Still record the stage change even if no tasks, so we can track if user changes again
+      await recordStageChange({
+        opportunityId,
+        opportunityName: opportunityName || null,
+        previousStage: previousStageName || null,
+        previousStageId: previousStageId || null,
+        newStage: stageName,
+        newStageId: stageId || null,
+        taskIds: []
+      });
       return {
         success: true,
         message: 'No tasks to create for this stage',
-        tasksCreated: 0
+        tasksCreated: 0,
+        tasksDeleted: deletionResult.deletedCount
       };
     }
 
-    // Create tasks in GHL
+    // Step 3: Record this stage change BEFORE creating tasks
+    const stageChangeRecord = await recordStageChange({
+      opportunityId,
+      opportunityName: opportunityName || null,
+      previousStage: previousStageName || null,
+      previousStageId: previousStageId || null,
+      newStage: stageName,
+      newStageId: stageId || null,
+      taskIds: [] // Will update after tasks are created
+    });
+
+    // Step 4: Create tasks in GHL
     const createdTasks = [];
+    const createdTaskIds = [];
     for (const task of tasks) {
       try {
         const createdTask = await createGHLTask(task, opportunityId, contactId);
         createdTasks.push(createdTask);
+        // Extract task ID from response
+        if (createdTask.task?.id) {
+          createdTaskIds.push(createdTask.task.id);
+        } else if (createdTask.id) {
+          createdTaskIds.push(createdTask.id);
+        }
       } catch (taskError) {
         console.error(`Error creating task ${task.task_number}:`, taskError.message);
         // Continue creating other tasks even if one fails
       }
+    }
+
+    // Step 5: Update the stage change record with created task IDs
+    if (createdTaskIds.length > 0) {
+      await updateStageChangeTaskIds(stageChangeRecord.id, createdTaskIds);
     }
 
     console.log(`Successfully created ${createdTasks.length} out of ${tasks.length} tasks`);
@@ -161,7 +380,9 @@ async function processOpportunityStageChange(webhookData) {
       message: `Created ${createdTasks.length} tasks for stage: ${stageName}`,
       tasksCreated: createdTasks.length,
       totalTasks: tasks.length,
-      tasks: createdTasks
+      tasks: createdTasks,
+      tasksDeleted: deletionResult.deletedCount,
+      gracePeriodApplied: deletionResult.deletedCount > 0
     };
   } catch (error) {
     console.error('Error in processOpportunityStageChange:', error);
@@ -532,6 +753,7 @@ async function processTaskCompletion(taskData) {
 module.exports = {
   getTasksForStage,
   createGHLTask,
+  deleteGHLTask,
   processOpportunityStageChange,
   processTaskCompletion,
   updateOpportunityStage,
@@ -539,5 +761,11 @@ module.exports = {
   checkContactAppointments,
   checkAppointmentsWithRetry,
   getOpportunityById,
-  checkOpportunityStageWithRetry
+  checkOpportunityStageWithRetry,
+  // Grace period functions
+  recordStageChange,
+  getRecentStageChanges,
+  deletePreviousStageTasks,
+  updateStageChangeTaskIds,
+  STAGE_CHANGE_GRACE_PERIOD_MS
 };
