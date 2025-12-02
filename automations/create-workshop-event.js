@@ -339,17 +339,19 @@ async function createWorkshopGHL(workshopData, files = []) {
 
         // Build the record data with actual GHL custom object field names
         // Custom fields must be nested inside 'properties' object
+        // Field keys from GHL schema: custom_objects.workshops.*
         const recordData = {
             locationId: locationId,
             properties: {
-                workshops: workshopData.workshopName,
-                notes: workshopData.workshopNotes,
-                location: workshopData.workshopAddress,
+                title: workshopData.workshopName,
                 date: workshopData.workshopDate,
                 time: workshopData.workshopTime,
-                workshop_type: workshopData.workshopType,
-                max_capacity: workshopData.maxCapacity,
-                status: 'scheduled', // Default status
+                location: workshopData.workshopAddress,
+                type: workshopData.workshopType?.toLowerCase() || '', // Options: seminar, webinar
+                max_capacity: workshopData.maxCapacity ? parseInt(workshopData.maxCapacity, 10) : null,
+                joined_attendees: 0, // Initialize with 0 attendees
+                notes: workshopData.workshopNotes,
+                status: 'scheduled', // Options: scheduled, cancelled, finished
             }
         };
 
