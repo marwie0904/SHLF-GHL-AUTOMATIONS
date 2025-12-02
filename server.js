@@ -7,11 +7,12 @@ const { parseJotFormIntakeWebhook } = require('./utils/jotformIntakeParser');
 const { mapIntakeToGHL } = require('./utils/intakeDataMapper');
 const { createGHLContact, createGHLOpportunity } = require('./services/ghlService');
 const { handlePdfUpload } = require('./services/pdfService');
-const { processOpportunityStageChange, processTaskCompletion, checkAppointmentsWithRetry, searchOpportunitiesByContact, updateOpportunityStage, checkOpportunityStageWithRetry } = require('./services/ghlOpportunityService');
+const { processOpportunityStageChange, processTaskCompletion, checkAppointmentsWithRetry, searchOpportunitiesByContact, updateOpportunityStage, checkOpportunityStageWithRetry, getOpportunityById } = require('./services/ghlOpportunityService');
 const { processTaskCreation } = require('./services/ghlTaskService');
 const { processAppointmentCreated } = require('./services/appointmentService');
 const { main: createWorkshopEvent } = require('./automations/create-workshop-event');
 const { main: associateContactToWorkshop } = require('./automations/associate-contact-to-workshop');
+const { processInboundSms } = require('./services/smsConfirmationService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1171,6 +1172,25 @@ app.post('/webhooks/confido/payment-received', async (req, res) => {
         console.log('✅ Notification task created in GHL');
       } catch (taskError) {
         console.error('Failed to create GHL task:', taskError.message);
+        // Don't fail the request - payment is already recorded
+      }
+
+      // Move opportunity to "Engaged" stage after Confido payment received
+      console.log('Moving opportunity to Engaged stage...');
+      try {
+        const ENGAGED_STAGE_ID = '26243231-7b09-48dd-a8a1-18489bab69e3';
+
+        // Get current opportunity to find its pipeline ID
+        const opportunity = await getOpportunityById(invoice.ghl_opportunity_id);
+        const currentPipelineId = opportunity.pipelineId;
+
+        console.log(`   Current Pipeline: ${currentPipelineId}`);
+        console.log(`   Target Stage (Engaged): ${ENGAGED_STAGE_ID}`);
+
+        await updateOpportunityStage(invoice.ghl_opportunity_id, currentPipelineId, ENGAGED_STAGE_ID);
+        console.log('✅ Opportunity moved to Engaged stage');
+      } catch (stageError) {
+        console.error('Failed to move opportunity to Engaged stage:', stageError.message);
         // Don't fail the request - payment is already recorded
       }
     }
@@ -2371,6 +2391,91 @@ app.get('/invoice/:invoiceNumber/download', async (req, res) => {
   } catch (error) {
     console.error('Error generating invoice PDF:', error);
     res.status(500).json({ error: 'Failed to generate PDF' });
+  }
+});
+
+// ============================================
+// CRON JOB ENDPOINTS
+// ============================================
+
+const { processScheduledReminders } = require('./services/appointmentSmsService');
+
+/**
+ * Cron endpoint to process scheduled SMS reminders
+ * Should be called every 15-30 minutes during business hours (8am-4pm EST)
+ *
+ * Example cron setup (every 15 minutes, 8am-4pm EST):
+ * */15 8-15 * * * curl -X POST https://your-server.com/cron/process-sms-reminders
+ */
+app.post('/cron/process-sms-reminders', async (req, res) => {
+  console.log('\n========================================');
+  console.log('📱 CRON: Process SMS Reminders');
+  console.log('========================================');
+  console.log('Time:', new Date().toISOString());
+
+  try {
+    const result = await processScheduledReminders();
+
+    console.log('CRON Result:', JSON.stringify(result, null, 2));
+
+    res.json({
+      success: true,
+      message: 'SMS reminders processed',
+      result
+    });
+
+  } catch (error) {
+    console.error('❌ CRON Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GHL Inbound SMS webhook endpoint
+// Detects "Y"/"y" confirmation replies and adds "Confirmed [meeting_type]" tag
+app.post('/webhooks/ghl/inbound-sms', async (req, res) => {
+  try {
+    console.log('=== GHL INBOUND SMS WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Full Request Body:', JSON.stringify(req.body, null, 2));
+
+    // Extract SMS data from GHL webhook
+    // GHL InboundMessage webhook format
+    const smsData = {
+      type: req.body.type,
+      body: req.body.body,
+      contactId: req.body.contactId,
+      messageType: req.body.messageType,
+      direction: req.body.direction,
+      conversationId: req.body.conversationId,
+      locationId: req.body.locationId,
+      dateAdded: req.body.dateAdded,
+      attachments: req.body.attachments
+    };
+
+    console.log('Extracted SMS data:', JSON.stringify(smsData, null, 2));
+
+    // Process the inbound SMS
+    const result = await processInboundSms(smsData);
+
+    res.json({
+      success: true,
+      message: result.action === 'tagged' ? 'Confirmation tag added' : 'Message processed',
+      action: result.action,
+      tagAdded: result.tagAdded,
+      meetingType: result.meetingType,
+      reason: result.reason
+    });
+
+  } catch (error) {
+    console.error('Error processing GHL inbound SMS webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing webhook',
+      error: error.message
+    });
   }
 });
 
