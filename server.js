@@ -2405,7 +2405,7 @@ const { processScheduledReminders } = require('./services/appointmentSmsService'
  * Should be called every 15-30 minutes during business hours (8am-4pm EST)
  *
  * Example cron setup (every 15 minutes, 8am-4pm EST):
- * */15 8-15 * * * curl -X POST https://your-server.com/cron/process-sms-reminders
+ * 0,15,30,45 8-15 * * * curl -X POST https://your-server.com/cron/process-sms-reminders
  */
 app.post('/cron/process-sms-reminders', async (req, res) => {
   console.log('\n========================================');
