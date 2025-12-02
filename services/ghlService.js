@@ -520,6 +520,150 @@ async function getRelations(recordId, locationId) {
 }
 
 /**
+ * Searches for opportunities by contact ID
+ * @param {string} contactId - GHL contact ID
+ * @param {string} pipelineId - Optional pipeline ID to filter by
+ * @returns {Promise<Array>} Array of opportunities for the contact
+ */
+async function searchOpportunitiesByContact(contactId, pipelineId = null) {
+  const apiKey = process.env.GHL_API_KEY;
+  const locationId = process.env.GHL_LOCATION_ID;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  if (!locationId) {
+    throw new Error('GHL_LOCATION_ID not configured in environment variables');
+  }
+
+  try {
+    console.log('=== Searching Opportunities by Contact ===');
+    console.log('Contact ID:', contactId);
+    console.log('Pipeline ID:', pipelineId || 'All pipelines');
+
+    const params = {
+      location_id: locationId,
+      contact_id: contactId
+    };
+
+    if (pipelineId) {
+      params.pipeline_id = pipelineId;
+    }
+
+    const response = await axios.get(
+      'https://services.leadconnectorhq.com/opportunities/search',
+      {
+        params,
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Version': '2021-07-28'
+        }
+      }
+    );
+
+    const opportunities = response.data.opportunities || [];
+    console.log(`Found ${opportunities.length} opportunities for contact`);
+    return opportunities;
+  } catch (error) {
+    console.error('Error searching opportunities:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
+ * Creates or updates an opportunity for a contact in GoHighLevel
+ * If an opportunity already exists for the contact in the pipeline, it updates it
+ * Otherwise, it creates a new opportunity
+ * @param {string} contactId - GHL contact ID
+ * @param {string} pipelineId - GHL pipeline ID
+ * @param {string} stageId - GHL stage ID
+ * @param {string} name - Opportunity name
+ * @returns {Promise<Object>} API response with isNew flag
+ */
+async function upsertGHLOpportunity(contactId, pipelineId, stageId, name) {
+  const apiKey = process.env.GHL_API_KEY;
+  const locationId = process.env.GHL_LOCATION_ID;
+
+  if (!apiKey) {
+    throw new Error('GHL_API_KEY not configured in environment variables');
+  }
+
+  if (!locationId) {
+    throw new Error('GHL_LOCATION_ID not configured in environment variables');
+  }
+
+  try {
+    // First, search for existing opportunities for this contact in this pipeline
+    console.log('=== Checking for existing opportunity ===');
+    const existingOpportunities = await searchOpportunitiesByContact(contactId, pipelineId);
+
+    if (existingOpportunities.length > 0) {
+      // Found existing opportunity - update it
+      const existingOpp = existingOpportunities[0]; // Take the first/most recent one
+      console.log(`Found existing opportunity: ${existingOpp.id}, updating...`);
+
+      const updatePayload = {
+        pipelineStageId: stageId,
+        name: name
+      };
+
+      const response = await axios.put(
+        `https://services.leadconnectorhq.com/opportunities/${existingOpp.id}`,
+        updatePayload,
+        {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'Version': '2021-07-28'
+          }
+        }
+      );
+
+      console.log('GHL Opportunity updated successfully:', response.data);
+      return {
+        ...response.data,
+        isNew: false,
+        existingOpportunityId: existingOpp.id
+      };
+    } else {
+      // No existing opportunity - create new one
+      console.log('No existing opportunity found, creating new one...');
+
+      const createPayload = {
+        pipelineId: pipelineId,
+        locationId: locationId,
+        name: name,
+        pipelineStageId: stageId,
+        status: 'open',
+        contactId: contactId
+      };
+
+      const response = await axios.post(
+        'https://services.leadconnectorhq.com/opportunities/',
+        createPayload,
+        {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'Version': '2021-07-28'
+          }
+        }
+      );
+
+      console.log('GHL Opportunity created successfully:', response.data);
+      return {
+        ...response.data,
+        isNew: true
+      };
+    }
+  } catch (error) {
+    console.error('Error upserting GHL opportunity:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
  * Gets opportunity details including contact information
  * @param {string} opportunityId - GHL opportunity ID
  * @returns {Promise<Object>} Opportunity data with contact details
@@ -557,6 +701,8 @@ module.exports = {
   createGHLContact,
   updateGHLContact,
   createGHLOpportunity,
+  upsertGHLOpportunity,
+  searchOpportunitiesByContact,
   getCustomFields,
   getContact,
   createTask,

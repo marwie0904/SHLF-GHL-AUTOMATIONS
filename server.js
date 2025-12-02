@@ -5,7 +5,7 @@ const { parseJotFormWebhook } = require('./utils/jotformParser');
 const { mapJotFormToGHL } = require('./utils/dataMapper');
 const { parseJotFormIntakeWebhook } = require('./utils/jotformIntakeParser');
 const { mapIntakeToGHL } = require('./utils/intakeDataMapper');
-const { createGHLContact, createGHLOpportunity } = require('./services/ghlService');
+const { createGHLContact, createGHLOpportunity, upsertGHLOpportunity } = require('./services/ghlService');
 const { handlePdfUpload } = require('./services/pdfService');
 const { processOpportunityStageChange, processTaskCompletion, checkAppointmentsWithRetry, searchOpportunitiesByContact, updateOpportunityStage, checkOpportunityStageWithRetry, getOpportunityById } = require('./services/ghlOpportunityService');
 const { processTaskCreation } = require('./services/ghlTaskService');
@@ -53,24 +53,24 @@ app.post('/webhook/jotform', upload.none(), async (req, res) => {
     const ghlContactId = ghlResponse.contact?.id || ghlResponse.id;
     const isDuplicate = ghlResponse.isDuplicate || false;
 
-    // Create opportunity in "Pending Contact" stage
+    // Create or update opportunity in "Pending Contact" stage
     let opportunityResult = null;
     const pipelineId = process.env.GHL_PIPELINE_ID || 'LFxLIUP3LCVES60i9iwN'; // Default pipeline ID
     const pendingContactStageId = 'f0241e66-85b6-477e-9754-393aeedaef20'; // Pending Contact stage ID
     const contactName = `${parsedData.yourFirstName} ${parsedData.yourLastName}`.trim();
 
     try {
-      console.log(`Creating opportunity for contact ${ghlContactId} in Pending Contact stage`);
-      opportunityResult = await createGHLOpportunity(
+      console.log(`Upserting opportunity for contact ${ghlContactId} in Pending Contact stage`);
+      opportunityResult = await upsertGHLOpportunity(
         ghlContactId,
         pipelineId,
         pendingContactStageId,
         contactName
       );
-      console.log('Opportunity created:', opportunityResult);
+      console.log(opportunityResult.isNew ? 'Opportunity created:' : 'Opportunity updated:', opportunityResult);
     } catch (opportunityError) {
-      console.error('Error creating opportunity:', opportunityError.message);
-      // Don't fail the whole request if opportunity creation fails
+      console.error('Error upserting opportunity:', opportunityError.message);
+      // Don't fail the whole request if opportunity upsert fails
       opportunityResult = { success: false, error: opportunityError.message };
     }
 
@@ -101,13 +101,17 @@ app.post('/webhook/jotform', upload.none(), async (req, res) => {
     }
 
     // Send success response
+    const opportunityId = opportunityResult?.opportunity?.id || opportunityResult?.id;
+    const isNewOpportunity = opportunityResult?.isNew ?? true;
+
     res.json({
       success: true,
       message: isDuplicate ? 'Contact updated successfully' : 'Contact created successfully',
       ghlContactId: ghlContactId,
       isDuplicate: isDuplicate,
-      opportunityCreated: opportunityResult?.id ? true : false,
-      opportunityId: opportunityResult?.id,
+      opportunityCreated: isNewOpportunity && opportunityId ? true : false,
+      opportunityUpdated: !isNewOpportunity && opportunityId ? true : false,
+      opportunityId: opportunityId,
       pdfUploaded: pdfUploadResult?.success || false,
       pdfDetails: pdfUploadResult
     });
