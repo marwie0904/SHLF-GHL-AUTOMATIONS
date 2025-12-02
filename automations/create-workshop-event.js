@@ -350,7 +350,7 @@ async function createWorkshopGHL(workshopData, files = []) {
                 type: workshopData.workshopType?.toLowerCase() || '', // Options: seminar, webinar
                 max_capacity: workshopData.maxCapacity ? parseInt(workshopData.maxCapacity, 10) : null,
                 joined_attendees: 0, // Initialize with 0 attendees
-                notes: workshopData.workshopNotes,
+                notes: [workshopData.workshopDescription, workshopData.workshopNotes].filter(Boolean).join('\n\n'),
                 status: 'scheduled', // Options: scheduled, cancelled, finished
             }
         };
