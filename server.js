@@ -24,9 +24,68 @@ const upload = multer();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Redirect middleware for testing - forwards all requests to another server when enabled
+// Set REDIRECT_ENABLED env var to 'false' to disable, or change default below
+const REDIRECT_ENABLED = process.env.REDIRECT_ENABLED !== 'false'; // Default: ENABLED for testing
+const REDIRECT_TARGET_URL = process.env.REDIRECT_TARGET_URL || 'https://shlf-ghl-monorepo-erzeg.ondigitalocean.app';
+
+if (REDIRECT_ENABLED) {
+  console.log(`⚠️  REDIRECT MODE ENABLED - All requests will be forwarded to: ${REDIRECT_TARGET_URL}`);
+
+  const axios = require('axios');
+
+  app.use(async (req, res, next) => {
+    // Skip health check so we can still verify this server is running
+    if (req.path === '/health') {
+      return next();
+    }
+
+    const targetUrl = `${REDIRECT_TARGET_URL}${req.originalUrl}`;
+    console.log(`[REDIRECT] ${req.method} ${req.originalUrl} -> ${targetUrl}`);
+
+    try {
+      const response = await axios({
+        method: req.method,
+        url: targetUrl,
+        headers: {
+          ...req.headers,
+          host: new URL(REDIRECT_TARGET_URL).host,
+        },
+        data: req.body,
+        timeout: 30000,
+        validateStatus: () => true, // Accept any status code
+      });
+
+      // Forward the response back to the original caller
+      res.status(response.status);
+      Object.entries(response.headers).forEach(([key, value]) => {
+        // Skip certain headers that shouldn't be forwarded
+        if (!['transfer-encoding', 'connection', 'content-encoding'].includes(key.toLowerCase())) {
+          res.set(key, value);
+        }
+      });
+      res.send(response.data);
+
+      console.log(`[REDIRECT] Response: ${response.status}`);
+    } catch (error) {
+      console.error(`[REDIRECT] Error forwarding request:`, error.message);
+      res.status(502).json({
+        error: 'Redirect failed',
+        message: error.message,
+        targetUrl: targetUrl,
+      });
+    }
+  });
+}
+
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'JotForm to GHL automation service running' });
+  res.json({
+    status: 'ok',
+    message: 'JotForm to GHL automation service running',
+    redirectEnabled: REDIRECT_ENABLED,
+    redirectTarget: REDIRECT_ENABLED ? REDIRECT_TARGET_URL : null,
+  });
 });
 
 // JotForm webhook endpoint
